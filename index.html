@@ -107,7 +107,7 @@
       border: 1px solid var(--optic-border, rgba(255, 255, 255, 0.12));
       border-radius: 0 0 var(--optic-radius-lg, 24px) var(--optic-radius-lg, 24px);
       overflow: hidden;
-      background: linear-gradient(145deg, rgba(4, 7, 15, 0.65), rgba(4, 7, 15, 0.4));
+      background: linear-gradient(145deg, rgba(220, 220, 220, 0.65), rgba(255, 255, 255, 0.4));
       display: flex;
       box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45);
       height: 100%;
@@ -347,24 +347,24 @@
 
       // URL parameter handling
       let isRestoringFromURL = false;
-      
+
       const updateURL = () => {
         // Don't update URL if we're currently restoring from URL parameters
         if (isRestoringFromURL) return;
-        
+
         const params = new URLSearchParams();
-        
+
         viewerConfigs.forEach((config) => {
           const datasetSelect = document.getElementById(`${config.prefix}-dataset-select`);
           const neuronSelect = document.getElementById(`${config.prefix}-neuron-select`);
-          
+
           if (datasetSelect && datasetSelect.value) {
             const datasetName = datasetSelect.selectedOptions[0]?.textContent;
             if (datasetName) {
               params.set(`dataset-${config.prefix.replace('viewer', '').toLowerCase()}`, datasetName);
             }
           }
-          
+
           if (neuronSelect && neuronSelect.value) {
             const cellTypeName = neuronSelect.selectedOptions[0]?.textContent;
             if (cellTypeName) {
@@ -372,7 +372,7 @@
             }
           }
         });
-        
+
         const newURL = params.toString() ? `?${params.toString()}` : 'index.html';
         window.history.replaceState({}, '', newURL);
       };
@@ -720,20 +720,20 @@
           const paramPrefix = config.prefix === 'viewerA' ? 'A' : 'B';
           const datasetToRestore = urlParams[`dataset${paramPrefix}`];
           const cellTypeToRestore = urlParams[`celltype${paramPrefix}`];
-          
+
           if (datasetToRestore && datasetSelect) {
             isRestoringFromURL = true;
-            
+
             // Find and select the matching dataset
             const options = Array.from(datasetSelect.options);
             const matchingOption = options.find(opt => opt.textContent === datasetToRestore);
             if (matchingOption) {
               datasetSelect.value = matchingOption.value;
-              
+
               // Manually trigger dataset loading
               const selectedBase = matchingOption.value.trim();
               const loadToken = ++currentLoadToken;
-              
+
               fetchDatasetData(selectedBase)
                 .then((data) => {
                   if (loadToken !== currentLoadToken) return;
@@ -742,21 +742,21 @@
                   state.neuronData = Array.isArray(data.neuronData) ? data.neuronData : [];
                   state.neuronIndex = buildNeuronIndex(state.neuronData);
                   populateNeuronOptions();
-                  
+
                   // Now restore the cell type if specified
                   if (cellTypeToRestore && neuronSelect) {
                     const neuronOptions = Array.from(neuronSelect.options);
                     const matchingNeuron = neuronOptions.find(opt => opt.textContent === cellTypeToRestore);
                     if (matchingNeuron) {
                       neuronSelect.value = matchingNeuron.value;
-                      
+
                       // Manually trigger the neuron selection
                       const selection = matchingNeuron.value;
                       const entryIndex = matchingNeuron.dataset.entryIndex;
                       const typeEntry = typeof entryIndex !== 'undefined' ? state.neuronEntries[Number(entryIndex)] : null;
                       const selectionKey = normalizeKey(selection);
                       let record = null;
-                      
+
                       if (selectionKey && state.neuronIndex.has(selectionKey)) {
                         record = state.neuronIndex.get(selectionKey);
                       } else if (typeEntry) {
@@ -768,7 +768,7 @@
                           }
                         }
                       }
-                      
+
                       if (record) {
                         const primaryPath = getPrimaryPath(record);
                         if (primaryPath) {
@@ -778,7 +778,7 @@
                       }
                     }
                   }
-                  
+
                   isRestoringFromURL = false;
                   updateURL();
                 })
@@ -885,7 +885,7 @@
 
         resetNeuronSelect();
         populateDatasetOptions();
-        
+
         // Return viewer info for URL restoration
         return { datasetSelect, neuronSelect, config, state, restoreFromURLParams };
       };
@@ -895,13 +895,13 @@
         const datasets = Array.isArray(registry?.all?.()) ? registry.all() : [];
 
         const viewers = viewerConfigs.map((config) => initViewer(config, datasets));
-        
+
         // Restore state from URL parameters
         const urlParams = getURLParams();
-        
+
         // Check if we have any URL parameters to restore
         const hasParams = urlParams.datasetA || urlParams.datasetB;
-        
+
         if (hasParams) {
           // Wait for datasets to be populated, then restore
           setTimeout(() => {
@@ -947,7 +947,7 @@
             if (welcomeScreen) {
               welcomeScreen.classList.remove('is-hidden');
             }
-            
+
             // Clear URL parameters
             window.history.replaceState({}, '', 'index.html');
           });
