@@ -22,10 +22,10 @@
       position: sticky;
       top: 0;
       z-index: 20;
-      display: flex;
-      align-items: center;
-      flex-wrap: nowrap;
-      gap: 0.75rem;
+      display: flex !important;
+      align-items: flex-end;
+      flex-wrap: nowrap !important;
+      gap: 0.5rem;
       width: 100%;
       padding: 0.75rem clamp(1rem, 3vw, 2rem);
       backdrop-filter: blur(22px);
@@ -34,15 +34,14 @@
     }
 
     .primary-link {
-      display: inline-flex;
+      display: inline-flex !important;
       align-items: center;
       justify-content: center;
       text-decoration: none;
       min-height: calc(var(--viewer-header-height) - 0.5rem);
-      padding-inline: 1rem;
-      flex: 0 1 calc(100% / 12);
-      max-width: calc(100% / 12);
-      min-width: 4.5rem;
+      padding-inline: 0.75rem;
+      flex: 0 0 6rem;
+      white-space: nowrap;
     }
 
     .primary-link--left {
@@ -56,17 +55,16 @@
     }
 
     .viewer-controls {
-      flex: 0 1 calc((100% / 12) * 10 - 1.5rem);
-      max-width: calc((100% / 12) * 10 - 1.5rem);
+      flex: 1 1 auto;
       min-width: 0;
-      margin-inline: auto;
-      display: grid;
-      grid-template-columns: repeat(4, minmax(8.25rem, 1fr));
-      gap: 0.6rem;
-      align-items: center;
+      display: flex !important;
+      gap: 0.5rem;
+      align-items: flex-end;
+      overflow: hidden;
     }
 
     .viewer-controls .selector {
+      flex: 1 1 0;
       min-width: 0;
     }
 
@@ -87,6 +85,9 @@
     .selector select {
       min-height: calc(var(--viewer-header-height) - 0.5rem);
       padding-block: 0.35rem;
+      min-width: 0;
+      width: 100%;
+      text-overflow: ellipsis;
     }
 
     main.viewer-split {
