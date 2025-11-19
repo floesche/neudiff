@@ -81,8 +81,8 @@ datasetRegistry.add(
 ```
 
 Default datasets include:
-- Male CNS
-- Female Adult Fly Brain
+- [Male CNS](https://reiserlab.github.io/celltype-explorer-drosophila-male-cns)
+- [Female Adult Fly Brain](https://reiserlab.github.io/celltype-explorer-drosophila-female-adult-fly-brain/)
 
 #### Dynamic Content Loading
 
