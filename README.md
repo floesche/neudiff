@@ -123,7 +123,7 @@ To add a new dataset to neuDiff:
 
 ## Authors
 
-- Frank Loesche (https://github.com/loeschef) - Initial development and implementation
+- Frank Loesche (https://github.com/floesche) - Initial development and implementation
 
 ## License
 
