@@ -345,6 +345,48 @@
       const datasetCache = new Map();
       const ABSOLUTE_URL_PATTERN = /^https?:\/\//i;
 
+      // URL parameter handling
+      let isRestoringFromURL = false;
+      
+      const updateURL = () => {
+        // Don't update URL if we're currently restoring from URL parameters
+        if (isRestoringFromURL) return;
+        
+        const params = new URLSearchParams();
+        
+        viewerConfigs.forEach((config) => {
+          const datasetSelect = document.getElementById(`${config.prefix}-dataset-select`);
+          const neuronSelect = document.getElementById(`${config.prefix}-neuron-select`);
+          
+          if (datasetSelect && datasetSelect.value) {
+            const datasetName = datasetSelect.selectedOptions[0]?.textContent;
+            if (datasetName) {
+              params.set(`dataset-${config.prefix.replace('viewer', '').toLowerCase()}`, datasetName);
+            }
+          }
+          
+          if (neuronSelect && neuronSelect.value) {
+            const cellTypeName = neuronSelect.selectedOptions[0]?.textContent;
+            if (cellTypeName) {
+              params.set(`celltype-${config.prefix.replace('viewer', '').toLowerCase()}`, cellTypeName);
+            }
+          }
+        });
+        
+        const newURL = params.toString() ? `?${params.toString()}` : 'index.html';
+        window.history.replaceState({}, '', newURL);
+      };
+
+      const getURLParams = () => {
+        const params = new URLSearchParams(window.location.search);
+        return {
+          datasetA: params.get('dataset-a'),
+          celltypeA: params.get('celltype-a'),
+          datasetB: params.get('dataset-b'),
+          celltypeB: params.get('celltype-b'),
+        };
+      };
+
       const skipWhitespaceAndComments = (text, start = 0) => {
         let index = start;
         while (index < text.length) {
@@ -673,6 +715,84 @@
           datasetSelect.disabled = false;
         };
 
+        const restoreFromURLParams = () => {
+          const urlParams = getURLParams();
+          const paramPrefix = config.prefix === 'viewerA' ? 'A' : 'B';
+          const datasetToRestore = urlParams[`dataset${paramPrefix}`];
+          const cellTypeToRestore = urlParams[`celltype${paramPrefix}`];
+          
+          if (datasetToRestore && datasetSelect) {
+            isRestoringFromURL = true;
+            
+            // Find and select the matching dataset
+            const options = Array.from(datasetSelect.options);
+            const matchingOption = options.find(opt => opt.textContent === datasetToRestore);
+            if (matchingOption) {
+              datasetSelect.value = matchingOption.value;
+              
+              // Manually trigger dataset loading
+              const selectedBase = matchingOption.value.trim();
+              const loadToken = ++currentLoadToken;
+              
+              fetchDatasetData(selectedBase)
+                .then((data) => {
+                  if (loadToken !== currentLoadToken) return;
+                  state.baseUrl = data.baseUrl;
+                  state.neuronEntries = Array.isArray(data.neuronTypes) ? data.neuronTypes : [];
+                  state.neuronData = Array.isArray(data.neuronData) ? data.neuronData : [];
+                  state.neuronIndex = buildNeuronIndex(state.neuronData);
+                  populateNeuronOptions();
+                  
+                  // Now restore the cell type if specified
+                  if (cellTypeToRestore && neuronSelect) {
+                    const neuronOptions = Array.from(neuronSelect.options);
+                    const matchingNeuron = neuronOptions.find(opt => opt.textContent === cellTypeToRestore);
+                    if (matchingNeuron) {
+                      neuronSelect.value = matchingNeuron.value;
+                      
+                      // Manually trigger the neuron selection
+                      const selection = matchingNeuron.value;
+                      const entryIndex = matchingNeuron.dataset.entryIndex;
+                      const typeEntry = typeof entryIndex !== 'undefined' ? state.neuronEntries[Number(entryIndex)] : null;
+                      const selectionKey = normalizeKey(selection);
+                      let record = null;
+                      
+                      if (selectionKey && state.neuronIndex.has(selectionKey)) {
+                        record = state.neuronIndex.get(selectionKey);
+                      } else if (typeEntry) {
+                        const typeKeys = buildKeySet(typeEntry);
+                        for (const key of typeKeys) {
+                          if (state.neuronIndex.has(key)) {
+                            record = state.neuronIndex.get(key);
+                            break;
+                          }
+                        }
+                      }
+                      
+                      if (record) {
+                        const primaryPath = getPrimaryPath(record);
+                        if (primaryPath) {
+                          showPreviewPane();
+                          frame.src = buildPreviewUrl(state.baseUrl, primaryPath);
+                        }
+                      }
+                    }
+                  }
+                  
+                  isRestoringFromURL = false;
+                  updateURL();
+                })
+                .catch((error) => {
+                  console.error(error);
+                  isRestoringFromURL = false;
+                  updateURL();
+                });
+            } else {
+              isRestoringFromURL = false;
+            }
+          }
+        };
+
         datasetSelect.addEventListener('change', (event) => {
           const selectedBase = (event.target.value || '').trim();
           currentLoadToken += 1;
@@ -682,6 +802,7 @@
           if (!selectedBase) {
             resetNeuronSelect();
             checkIfBothViewersEmpty();
+            updateURL();
             return;
           }
 
@@ -697,6 +818,7 @@
               state.neuronData = Array.isArray(data.neuronData) ? data.neuronData : [];
               state.neuronIndex = buildNeuronIndex(state.neuronData);
               populateNeuronOptions();
+              updateURL();
             })
             .catch((error) => {
               console.error(error);
@@ -708,6 +830,7 @@
               resetNeuronSelect();
               hidePreviewPane();
               checkIfBothViewersEmpty();
+              updateURL();
             });
         });
 
@@ -716,6 +839,7 @@
           if (!selection || !state.baseUrl) {
             hidePreviewPane();
             checkIfBothViewersEmpty();
+            updateURL();
             return;
           }
 
@@ -742,6 +866,7 @@
           if (!record) {
             hidePreviewPane();
             checkIfBothViewersEmpty();
+            updateURL();
             return;
           }
 
@@ -749,22 +874,43 @@
           if (!primaryPath) {
             hidePreviewPane();
             checkIfBothViewersEmpty();
+            updateURL();
             return;
           }
 
           showPreviewPane();
           frame.src = buildPreviewUrl(state.baseUrl, primaryPath);
+          updateURL();
         });
 
         resetNeuronSelect();
         populateDatasetOptions();
+        
+        // Return viewer info for URL restoration
+        return { datasetSelect, neuronSelect, config, state, restoreFromURLParams };
       };
 
       document.addEventListener('DOMContentLoaded', () => {
         const registry = window.opticDatasetRegistry;
         const datasets = Array.isArray(registry?.all?.()) ? registry.all() : [];
 
-        viewerConfigs.forEach((config) => initViewer(config, datasets));
+        const viewers = viewerConfigs.map((config) => initViewer(config, datasets));
+        
+        // Restore state from URL parameters
+        const urlParams = getURLParams();
+        
+        // Check if we have any URL parameters to restore
+        const hasParams = urlParams.datasetA || urlParams.datasetB;
+        
+        if (hasParams) {
+          // Wait for datasets to be populated, then restore
+          setTimeout(() => {
+            viewers.forEach((viewer) => {
+              if (!viewer) return;
+              viewer.restoreFromURLParams();
+            });
+          }, 100);
+        }
 
         // Add reset functionality to neuDiff button
         const neuDiffButton = document.querySelector('a[href="index.html"]');
@@ -801,6 +947,9 @@
             if (welcomeScreen) {
               welcomeScreen.classList.remove('is-hidden');
             }
+            
+            // Clear URL parameters
+            window.history.replaceState({}, '', 'index.html');
           });
         }
       });
