@@ -141,14 +141,20 @@
     }
 
     .welcome-content {
-      max-width: 800px;
+      max-width: 1000px;
       margin: 0 auto;
+      background: linear-gradient(145deg, rgba(4, 7, 15, 0.95), rgba(4, 7, 15, 0.85));
+      border: 1px solid var(--optic-border, rgba(255, 255, 255, 0.12));
+      border-radius: var(--optic-radius-lg, 24px);
+      padding: clamp(2rem, 5vw, 3.5rem);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(20px);
     }
 
     .welcome-content h1 {
       font-size: clamp(2rem, 4vw, 3rem);
       margin-bottom: 1rem;
-      color: rgba(10, 20, 40, 0.95);
+      color: rgba(247, 251, 255, 0.95);
       font-weight: 600;
       letter-spacing: -0.02em;
     }
@@ -157,23 +163,23 @@
       font-size: clamp(1.25rem, 2.5vw, 1.75rem);
       margin-top: 2rem;
       margin-bottom: 0.75rem;
-      color: rgba(20, 35, 60, 0.9);
+      color: rgba(247, 251, 255, 0.9);
       font-weight: 500;
     }
 
     .welcome-content strong {
-      color: rgba(20, 35, 60, 0.95);
+      color: rgba(247, 251, 255, 0.95);
     }
 
     .welcome-content p {
       font-size: clamp(1rem, 1.5vw, 1.125rem);
       line-height: 1.7;
-      color: rgba(30, 45, 70, 0.85);
+      color: rgba(247, 251, 255, 0.75);
       margin-bottom: 1rem;
     }
 
     .welcome-content .highlight {
-      color: rgba(20, 80, 180, 0.95);
+      color: rgba(120, 180, 255, 0.95);
       font-weight: 500;
     }
 
@@ -187,7 +193,7 @@
     .welcome-content li {
       font-size: clamp(0.95rem, 1.5vw, 1.0625rem);
       line-height: 1.7;
-      color: rgba(30, 45, 70, 0.85);
+      color: rgba(247, 251, 255, 0.75);
       margin-bottom: 0.75rem;
       padding-left: 1.5rem;
       position: relative;
@@ -197,13 +203,13 @@
       content: "→";
       position: absolute;
       left: 0;
-      color: rgba(20, 80, 180, 0.9);
+      color: rgba(120, 180, 255, 0.8);
       font-weight: bold;
     }
 
     .welcome-content .note {
-      background: rgba(20, 80, 180, 0.08);
-      border-left: 3px solid rgba(20, 80, 180, 0.6);
+      background: rgba(120, 180, 255, 0.1);
+      border-left: 3px solid rgba(120, 180, 255, 0.5);
       padding: 1rem 1.5rem;
       margin: 2rem 0;
       border-radius: 0.5rem;
@@ -211,7 +217,7 @@
 
     .welcome-content .note p {
       margin: 0;
-      color: rgba(20, 35, 60, 0.9);
+      color: rgba(247, 251, 255, 0.85);
     }
 
     @media (max-width: 960px) {
@@ -276,13 +282,13 @@
       <div class="welcome-content">
         <h1>Welcome to neuDiff</h1>
         <p>
-          <strong>neuDiff</strong> is a comparative visualization tool designed to help you explore and compare 
+          <strong>neuDiff</strong> is a comparative visualization tool designed to help you explore and compare
           cell type pages from the <span class="highlight">Janelia Cell Type Catalogues</span>.
         </p>
 
         <h2>How It Works</h2>
         <p>
-          This tool allows you to view two cell types side-by-side for detailed comparison. 
+          This tool allows you to view two cell types side-by-side for detailed comparison.
           You can compare:
         </p>
         <ul>
@@ -300,14 +306,22 @@
           <li><strong>Cell Type A</strong> and <strong>Cell Type B</strong>: Select specific cell types to compare</li>
         </ul>
         <p>
-          Once you've made your selections, the interactive visualizations will appear in split view, 
+          Once you've made your selections, the interactive visualizations will appear in split view,
           allowing you to examine morphology, connectivity, and other properties side-by-side.
         </p>
 
         <div class="note">
           <p>
-            <strong>Tip:</strong> Click the <span class="highlight">neuDiff</span> button in the top-left corner 
+            <strong>Tip:</strong> Click the <span class="highlight">neuDiff</span> button in the top-left corner
             at any time to reset your selections and return to this welcome screen.
+          </p>
+        </div>
+
+        <div class="warning">
+          <p>
+            <strong>Display Recommendation:</strong> neuDiff works best on wide monitors where you can view
+            both cell types side-by-side. If you're using a smaller screen or tablet, we recommend opening
+            the different cell type pages in separate browser tabs and then switching between them for a better viewing experience.
           </p>
         </div>
       </div>
@@ -757,12 +771,12 @@
         if (neuDiffButton) {
           neuDiffButton.addEventListener('click', (event) => {
             event.preventDefault();
-            
+
             // Reset all dataset and neuron selectors
             viewerConfigs.forEach((config) => {
               const datasetSelect = document.getElementById(`${config.prefix}-dataset-select`);
               const neuronSelect = document.getElementById(`${config.prefix}-neuron-select`);
-              
+
               if (datasetSelect) {
                 datasetSelect.value = '';
               }
@@ -770,7 +784,7 @@
                 neuronSelect.value = '';
                 neuronSelect.disabled = true;
               }
-              
+
               // Hide preview panes
               const previewPane = document.getElementById(`${config.prefix}-preview`);
               const frame = document.getElementById(`${config.prefix}-frame`);
@@ -781,7 +795,7 @@
                 frame.src = 'about:blank';
               }
             });
-            
+
             // Show welcome screen
             const welcomeScreen = document.getElementById('welcome-screen');
             if (welcomeScreen) {
