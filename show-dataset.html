@@ -94,20 +94,23 @@
     }
 
     main.viewer-split {
-      flex: 1 1 auto;
+      flex: 1 1 0;
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       gap: clamp(0.75rem, 2vw, 1.5rem);
       padding: clamp(0.75rem, 2vw, 1.5rem);
+      min-height: 0;
+      overflow: hidden;
     }
 
     .pane {
       border: 1px solid var(--optic-border, rgba(255, 255, 255, 0.12));
-      border-radius: var(--optic-radius-lg, 24px);
+      border-radius: 0 0 var(--optic-radius-lg, 24px) var(--optic-radius-lg, 24px);
       overflow: hidden;
       background: linear-gradient(145deg, rgba(4, 7, 15, 0.65), rgba(4, 7, 15, 0.4));
       display: flex;
       box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45);
+      height: 100%;
     }
 
     .pane.is-hidden {
@@ -117,9 +120,9 @@
     .pane iframe {
       border: none;
       width: 100%;
+      height: 100%;
       flex: 1;
       background: transparent;
-      min-height: 100000px;
     }
 
     @media (max-width: 960px) {
