@@ -125,6 +125,95 @@
       background: transparent;
     }
 
+    .welcome-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(2rem, 5vw, 4rem);
+      text-align: center;
+      height: 100%;
+      overflow-y: auto;
+    }
+
+    .welcome-screen.is-hidden {
+      display: none;
+    }
+
+    .welcome-content {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .welcome-content h1 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      margin-bottom: 1rem;
+      color: rgba(10, 20, 40, 0.95);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .welcome-content h2 {
+      font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      color: rgba(20, 35, 60, 0.9);
+      font-weight: 500;
+    }
+
+    .welcome-content strong {
+      color: rgba(20, 35, 60, 0.95);
+    }
+
+    .welcome-content p {
+      font-size: clamp(1rem, 1.5vw, 1.125rem);
+      line-height: 1.7;
+      color: rgba(30, 45, 70, 0.85);
+      margin-bottom: 1rem;
+    }
+
+    .welcome-content .highlight {
+      color: rgba(20, 80, 180, 0.95);
+      font-weight: 500;
+    }
+
+    .welcome-content ul {
+      text-align: left;
+      list-style: none;
+      padding: 0;
+      margin: 1.5rem 0;
+    }
+
+    .welcome-content li {
+      font-size: clamp(0.95rem, 1.5vw, 1.0625rem);
+      line-height: 1.7;
+      color: rgba(30, 45, 70, 0.85);
+      margin-bottom: 0.75rem;
+      padding-left: 1.5rem;
+      position: relative;
+    }
+
+    .welcome-content li::before {
+      content: "→";
+      position: absolute;
+      left: 0;
+      color: rgba(20, 80, 180, 0.9);
+      font-weight: bold;
+    }
+
+    .welcome-content .note {
+      background: rgba(20, 80, 180, 0.08);
+      border-left: 3px solid rgba(20, 80, 180, 0.6);
+      padding: 1rem 1.5rem;
+      margin: 2rem 0;
+      border-radius: 0.5rem;
+    }
+
+    .welcome-content .note p {
+      margin: 0;
+      color: rgba(20, 35, 60, 0.9);
+    }
+
     @media (max-width: 960px) {
       .viewer-header {
         flex-wrap: wrap;
@@ -156,38 +245,78 @@
 
     <div class="viewer-controls">
       <div class="selector">
-        <label for="viewerA-dataset-select">Dataset 1</label>
+        <label for="viewerA-dataset-select">Dataset A</label>
         <select id="viewerA-dataset-select" class="pm-input" disabled>
           <option value="">Choose dataset</option>
         </select>
       </div>
       <div class="selector">
-        <label for="viewerA-neuron-select">Neuron 1</label>
+        <label for="viewerA-neuron-select">Cell Type A</label>
         <select id="viewerA-neuron-select" class="pm-input" disabled>
-          <option value="">Choose neuron type</option>
+          <option value="">Choose cell type</option>
         </select>
       </div>
       <div class="selector">
-        <label for="viewerB-dataset-select">Dataset 2</label>
+        <label for="viewerB-dataset-select">Dataset B</label>
         <select id="viewerB-dataset-select" class="pm-input" disabled>
           <option value="">Choose dataset</option>
         </select>
       </div>
       <div class="selector">
-        <label for="viewerB-neuron-select">Neuron 2</label>
+        <label for="viewerB-neuron-select">Cell Type B</label>
         <select id="viewerB-neuron-select" class="pm-input" disabled>
-          <option value="">Choose neuron type</option>
+          <option value="">Choose cell type</option>
         </select>
       </div>
     </div>
   </header>
 
-  <main class="viewer-split" aria-label="Neuron previews">
-    <section id="viewerA-preview" class="pane is-hidden" aria-label="Viewer 1">
-      <iframe id="viewerA-frame" title="Viewer 1 neuron preview" src="about:blank" loading="lazy"></iframe>
+  <main class="viewer-split" aria-label="Cell Type previews">
+    <section id="welcome-screen" class="welcome-screen" aria-label="Welcome and Instructions">
+      <div class="welcome-content">
+        <h1>Welcome to neuDiff</h1>
+        <p>
+          <strong>neuDiff</strong> is a comparative visualization tool designed to help you explore and compare 
+          cell type pages from the <span class="highlight">Janelia Cell Type Catalogues</span>.
+        </p>
+
+        <h2>How It Works</h2>
+        <p>
+          This tool allows you to view two cell types side-by-side for detailed comparison. 
+          You can compare:
+        </p>
+        <ul>
+          <li>Different cell types within the <strong>same dataset</strong></li>
+          <li>The same cell type across <strong>different datasets</strong></li>
+          <li>Different cell types from <strong>different datasets</strong></li>
+        </ul>
+
+        <h2>Getting Started</h2>
+        <p>
+          Use the dropdown menus at the top of the page to select your comparisons:
+        </p>
+        <ul>
+          <li><strong>Dataset A</strong> and <strong>Dataset B</strong>: Choose which datasets to explore</li>
+          <li><strong>Cell Type A</strong> and <strong>Cell Type B</strong>: Select specific cell types to compare</li>
+        </ul>
+        <p>
+          Once you've made your selections, the interactive visualizations will appear in split view, 
+          allowing you to examine morphology, connectivity, and other properties side-by-side.
+        </p>
+
+        <div class="note">
+          <p>
+            <strong>Tip:</strong> Click the <span class="highlight">neuDiff</span> button in the top-left corner 
+            at any time to reset your selections and return to this welcome screen.
+          </p>
+        </div>
+      </div>
     </section>
-    <section id="viewerB-preview" class="pane is-hidden" aria-label="Viewer 2">
-      <iframe id="viewerB-frame" title="Viewer 2 neuron preview" src="about:blank" loading="lazy"></iframe>
+    <section id="viewerA-preview" class="pane is-hidden" aria-label="Viewer A">
+      <iframe id="viewerA-frame" title="Viewer A cell type preview" src="about:blank" loading="lazy"></iframe>
+    </section>
+    <section id="viewerB-preview" class="pane is-hidden" aria-label="Viewer B">
+      <iframe id="viewerB-frame" title="Viewer B cell type preview" src="about:blank" loading="lazy"></iframe>
     </section>
   </main>
 
@@ -430,6 +559,8 @@
 
         let currentLoadToken = 0;
 
+        const welcomeScreen = document.getElementById('welcome-screen');
+
         const hidePreviewPane = () => {
           frame.src = 'about:blank';
           previewPane.classList.add('is-hidden');
@@ -437,13 +568,30 @@
 
         const showPreviewPane = () => {
           previewPane.classList.remove('is-hidden');
+          if (welcomeScreen) {
+            welcomeScreen.classList.add('is-hidden');
+          }
+        };
+
+        const showWelcomeScreen = () => {
+          if (welcomeScreen) {
+            welcomeScreen.classList.remove('is-hidden');
+          }
+        };
+
+        const checkIfBothViewersEmpty = () => {
+          const viewerAHidden = document.getElementById('viewerA-preview')?.classList.contains('is-hidden');
+          const viewerBHidden = document.getElementById('viewerB-preview')?.classList.contains('is-hidden');
+          if (viewerAHidden && viewerBHidden) {
+            showWelcomeScreen();
+          }
         };
 
         const resetNeuronSelect = () => {
           neuronSelect.innerHTML = '';
           const option = document.createElement('option');
           option.value = '';
-          option.textContent = 'Choose neuron type';
+          option.textContent = 'Choose cell type';
           option.disabled = true;
           option.selected = true;
           neuronSelect.appendChild(option);
@@ -452,13 +600,14 @@
           state.neuronData = [];
           state.neuronIndex = new Map();
           hidePreviewPane();
+          checkIfBothViewersEmpty();
         };
 
         const populateNeuronOptions = () => {
           neuronSelect.innerHTML = '';
           const defaultOption = document.createElement('option');
           defaultOption.value = '';
-          defaultOption.textContent = 'Choose neuron type';
+          defaultOption.textContent = 'Choose cell type';
           defaultOption.disabled = true;
           defaultOption.selected = true;
           neuronSelect.appendChild(defaultOption);
@@ -488,6 +637,7 @@
             datasetSelect.disabled = true;
             resetNeuronSelect();
             hidePreviewPane();
+            checkIfBothViewersEmpty();
             return;
           }
 
@@ -517,6 +667,7 @@
 
           if (!selectedBase) {
             resetNeuronSelect();
+            checkIfBothViewersEmpty();
             return;
           }
 
@@ -542,6 +693,7 @@
               state.neuronIndex = new Map();
               resetNeuronSelect();
               hidePreviewPane();
+              checkIfBothViewersEmpty();
             });
         });
 
@@ -549,6 +701,7 @@
           const selection = neuronSelect.value;
           if (!selection || !state.baseUrl) {
             hidePreviewPane();
+            checkIfBothViewersEmpty();
             return;
           }
 
@@ -574,12 +727,14 @@
 
           if (!record) {
             hidePreviewPane();
+            checkIfBothViewersEmpty();
             return;
           }
 
           const primaryPath = getPrimaryPath(record);
           if (!primaryPath) {
             hidePreviewPane();
+            checkIfBothViewersEmpty();
             return;
           }
 
@@ -596,6 +751,44 @@
         const datasets = Array.isArray(registry?.all?.()) ? registry.all() : [];
 
         viewerConfigs.forEach((config) => initViewer(config, datasets));
+
+        // Add reset functionality to neuDiff button
+        const neuDiffButton = document.querySelector('a[href="index.html"]');
+        if (neuDiffButton) {
+          neuDiffButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            
+            // Reset all dataset and neuron selectors
+            viewerConfigs.forEach((config) => {
+              const datasetSelect = document.getElementById(`${config.prefix}-dataset-select`);
+              const neuronSelect = document.getElementById(`${config.prefix}-neuron-select`);
+              
+              if (datasetSelect) {
+                datasetSelect.value = '';
+              }
+              if (neuronSelect) {
+                neuronSelect.value = '';
+                neuronSelect.disabled = true;
+              }
+              
+              // Hide preview panes
+              const previewPane = document.getElementById(`${config.prefix}-preview`);
+              const frame = document.getElementById(`${config.prefix}-frame`);
+              if (previewPane) {
+                previewPane.classList.add('is-hidden');
+              }
+              if (frame) {
+                frame.src = 'about:blank';
+              }
+            });
+            
+            // Show welcome screen
+            const welcomeScreen = document.getElementById('welcome-screen');
+            if (welcomeScreen) {
+              welcomeScreen.classList.remove('is-hidden');
+            }
+          });
+        }
       });
     })();
   </script>
