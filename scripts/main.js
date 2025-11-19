@@ -48,3 +48,680 @@ document.addEventListener("DOMContentLoaded", () => {
     yearEl.textContent = new Date().getFullYear();
   }
 });
+
+// Viewer initialization code
+(() => {
+  const viewerConfigs = [{ prefix: "viewerA" }, { prefix: "viewerB" }];
+
+  const datasetCache = new Map();
+  const ABSOLUTE_URL_PATTERN = /^https?:\/\//i;
+
+  // URL parameter handling
+  let isRestoringFromURL = false;
+
+  const updateURL = () => {
+    // Don't update URL if we're currently restoring from URL parameters
+    if (isRestoringFromURL) return;
+
+    const params = new URLSearchParams();
+
+    viewerConfigs.forEach((config) => {
+      const datasetSelect = document.getElementById(
+        `${config.prefix}-dataset-select`,
+      );
+      const neuronSelect = document.getElementById(
+        `${config.prefix}-neuron-select`,
+      );
+
+      if (datasetSelect && datasetSelect.value) {
+        const datasetName = datasetSelect.selectedOptions[0]?.textContent;
+        if (datasetName) {
+          params.set(
+            `dataset-${config.prefix.replace("viewer", "").toLowerCase()}`,
+            datasetName,
+          );
+        }
+      }
+
+      if (neuronSelect && neuronSelect.value) {
+        const cellTypeName = neuronSelect.selectedOptions[0]?.textContent;
+        if (cellTypeName) {
+          params.set(
+            `celltype-${config.prefix.replace("viewer", "").toLowerCase()}`,
+            cellTypeName,
+          );
+        }
+      }
+    });
+
+    const newURL = params.toString() ? `?${params.toString()}` : "index.html";
+    window.history.replaceState({}, "", newURL);
+  };
+
+  const getURLParams = () => {
+    const params = new URLSearchParams(window.location.search);
+    return {
+      datasetA: params.get("dataset-a"),
+      celltypeA: params.get("celltype-a"),
+      datasetB: params.get("dataset-b"),
+      celltypeB: params.get("celltype-b"),
+    };
+  };
+
+  const skipWhitespaceAndComments = (text, start = 0) => {
+    let index = start;
+    while (index < text.length) {
+      const char = text[index];
+      const next = text[index + 1];
+      if (/\s/.test(char)) {
+        index += 1;
+        continue;
+      }
+      if (char === "/" && next === "/") {
+        index += 2;
+        while (index < text.length && text[index] !== "\n") index += 1;
+        continue;
+      }
+      if (char === "/" && next === "*") {
+        index += 2;
+        while (
+          index < text.length - 1 &&
+          !(text[index] === "*" && text[index + 1] === "/")
+        ) {
+          index += 1;
+        }
+        index += 2;
+        continue;
+      }
+      break;
+    }
+    return index;
+  };
+
+  const captureBalancedLiteral = (source, startIndex) => {
+    const opening = source[startIndex];
+    const closing = opening === "[" ? "]" : opening === "{" ? "}" : null;
+    if (!closing) return null;
+
+    let depth = 0;
+    let inString = false;
+    let stringChar = "";
+    let escapeNext = false;
+
+    for (let i = startIndex; i < source.length; i += 1) {
+      const char = source[i];
+
+      if (inString) {
+        if (escapeNext) {
+          escapeNext = false;
+          continue;
+        }
+        if (char === "\\") {
+          escapeNext = true;
+          continue;
+        }
+        if (char === stringChar) {
+          inString = false;
+          stringChar = "";
+        }
+        continue;
+      }
+
+      if (char === '"' || char === "'" || char === "`") {
+        inString = true;
+        stringChar = char;
+        continue;
+      }
+
+      if (char === opening) {
+        depth += 1;
+      } else if (char === closing) {
+        depth -= 1;
+        if (depth === 0) {
+          return source.slice(startIndex, i + 1);
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const extractConstLiteral = (source, constName) => {
+    const pattern = new RegExp(`const\\s+${constName}\\s*=`);
+    const match = pattern.exec(source);
+    if (!match) return null;
+    const literalStart = skipWhitespaceAndComments(
+      source,
+      match.index + match[0].length,
+    );
+    return captureBalancedLiteral(source, literalStart);
+  };
+
+  const parseConstValue = (source, constName) => {
+    const literal = extractConstLiteral(source, constName);
+    if (!literal) return null;
+    try {
+      // eslint-disable-next-line no-new-func
+      return new Function(`return (${literal});`)();
+    } catch (error) {
+      console.error(`Failed to parse ${constName}`, error);
+      return null;
+    }
+  };
+
+  const fetchDatasetData = (rawBaseUrl) => {
+    const normalizedBase = (rawBaseUrl || "").replace(/\/+$/, "");
+    if (!normalizedBase) {
+      return Promise.reject(new Error("Dataset is missing a valid base_url."));
+    }
+
+    if (datasetCache.has(normalizedBase)) {
+      return datasetCache.get(normalizedBase);
+    }
+
+    const loadPromise = (async () => {
+      const resourceUrl = `${normalizedBase}/static/js/neuron-search.js`;
+      const response = await fetch(resourceUrl, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch neuron-search.js (HTTP ${response.status}).`,
+        );
+      }
+
+      const scriptText = await response.text();
+      const neuronTypes = parseConstValue(scriptText, "NEURON_TYPES_DATA");
+      const neuronData = parseConstValue(scriptText, "NEURON_DATA");
+
+      if (!Array.isArray(neuronTypes)) {
+        throw new Error(
+          "neuron-search.js did not expose a parseable NEURON_TYPES_DATA array.",
+        );
+      }
+
+      return {
+        baseUrl: normalizedBase,
+        neuronTypes,
+        neuronData: Array.isArray(neuronData) ? neuronData : [],
+      };
+    })().catch((error) => {
+      datasetCache.delete(normalizedBase);
+      throw error;
+    });
+
+    datasetCache.set(normalizedBase, loadPromise);
+    return loadPromise;
+  };
+
+  const getEntryLabel = (entry) =>
+    typeof entry === "string"
+      ? entry
+      : entry?.label || entry?.name || entry?.id || entry?.slug || "Neuron";
+
+  const normalizeKey = (value) =>
+    typeof value === "string" || typeof value === "number"
+      ? value.toString().trim().toLowerCase()
+      : "";
+
+  const buildKeySet = (item) => {
+    const keys = new Set();
+    const addKey = (candidate) => {
+      const normalized = normalizeKey(candidate);
+      if (normalized) keys.add(normalized);
+    };
+
+    if (typeof item === "string" || typeof item === "number") {
+      addKey(item);
+      return keys;
+    }
+
+    if (item && typeof item === "object") {
+      ["name", "label", "id", "slug", "type"].forEach((field) =>
+        addKey(item[field]),
+      );
+      if (Array.isArray(item.aliases)) {
+        item.aliases.forEach(addKey);
+      }
+    }
+
+    return keys;
+  };
+
+  const buildNeuronIndex = (records) => {
+    const index = new Map();
+    if (!Array.isArray(records)) return index;
+    records.forEach((record) => {
+      buildKeySet(record).forEach((key) => {
+        if (!index.has(key)) {
+          index.set(key, record);
+        }
+      });
+    });
+    return index;
+  };
+
+  const getPrimaryKey = (entry) => {
+    const keys = buildKeySet(entry);
+    return keys.size ? keys.values().next().value : "";
+  };
+
+  const getPrimaryPath = (entry) => {
+    if (!entry || typeof entry !== "object") return "";
+    const candidates = [
+      "primary_url",
+      "primaryUrl",
+      "primaryURL",
+      "url",
+      "href",
+    ];
+    for (const key of candidates) {
+      const value = entry[key];
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    }
+    return "";
+  };
+
+  const buildPreviewUrl = (baseUrl, primaryPath) => {
+    const cleanedPath = (primaryPath || "").trim();
+    if (ABSOLUTE_URL_PATTERN.test(cleanedPath)) {
+      return cleanedPath;
+    }
+    const normalizedBase = (baseUrl || "").replace(/\/+$/, "");
+    const sanitizedPath = cleanedPath.replace(/^\//, "");
+    if (!sanitizedPath) {
+      return normalizedBase || "about:blank";
+    }
+    return `${normalizedBase}/${sanitizedPath}`;
+  };
+
+  const initViewer = (config, datasets) => {
+    const datasetSelect = document.getElementById(
+      `${config.prefix}-dataset-select`,
+    );
+    const neuronSelect = document.getElementById(
+      `${config.prefix}-neuron-select`,
+    );
+    const frame = document.getElementById(`${config.prefix}-frame`);
+    const previewPane = document.getElementById(`${config.prefix}-preview`);
+
+    if (!datasetSelect || !neuronSelect || !frame || !previewPane) {
+      return;
+    }
+
+    const state = {
+      baseUrl: "",
+      neuronEntries: [],
+      neuronData: [],
+      neuronIndex: new Map(),
+    };
+
+    let currentLoadToken = 0;
+
+    const welcomeScreen = document.getElementById("welcome-screen");
+
+    const hidePreviewPane = () => {
+      frame.src = "about:blank";
+      previewPane.classList.add("is-hidden");
+    };
+
+    const showPreviewPane = () => {
+      previewPane.classList.remove("is-hidden");
+      if (welcomeScreen) {
+        welcomeScreen.classList.add("is-hidden");
+      }
+    };
+
+    const showWelcomeScreen = () => {
+      if (welcomeScreen) {
+        welcomeScreen.classList.remove("is-hidden");
+      }
+    };
+
+    const checkIfBothViewersEmpty = () => {
+      const viewerAHidden = document
+        .getElementById("viewerA-preview")
+        ?.classList.contains("is-hidden");
+      const viewerBHidden = document
+        .getElementById("viewerB-preview")
+        ?.classList.contains("is-hidden");
+      if (viewerAHidden && viewerBHidden) {
+        showWelcomeScreen();
+      }
+    };
+
+    const resetNeuronSelect = () => {
+      neuronSelect.innerHTML = "";
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "Choose cell type";
+      option.disabled = true;
+      option.selected = true;
+      neuronSelect.appendChild(option);
+      neuronSelect.disabled = true;
+      state.neuronEntries = [];
+      state.neuronData = [];
+      state.neuronIndex = new Map();
+      hidePreviewPane();
+      checkIfBothViewersEmpty();
+    };
+
+    const populateNeuronOptions = () => {
+      neuronSelect.innerHTML = "";
+      const defaultOption = document.createElement("option");
+      defaultOption.value = "";
+      defaultOption.textContent = "Choose cell type";
+      defaultOption.disabled = true;
+      defaultOption.selected = true;
+      neuronSelect.appendChild(defaultOption);
+
+      state.neuronEntries.forEach((entry, index) => {
+        const option = document.createElement("option");
+        const label = getEntryLabel(entry);
+        option.textContent = label;
+        const bestKey =
+          getPrimaryKey(entry) || normalizeKey(label) || `__entry_${index}`;
+        option.value = bestKey;
+        option.dataset.entryIndex = String(index);
+        neuronSelect.appendChild(option);
+      });
+
+      neuronSelect.disabled = !state.neuronEntries.length;
+    };
+
+    const populateDatasetOptions = () => {
+      datasetSelect.innerHTML = "";
+      if (!datasets.length) {
+        const emptyOption = document.createElement("option");
+        emptyOption.value = "";
+        emptyOption.textContent = "No datasets configured";
+        emptyOption.disabled = true;
+        emptyOption.selected = true;
+        datasetSelect.appendChild(emptyOption);
+        datasetSelect.disabled = true;
+        resetNeuronSelect();
+        hidePreviewPane();
+        checkIfBothViewersEmpty();
+        return;
+      }
+
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Choose dataset";
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      datasetSelect.appendChild(placeholder);
+
+      datasets.forEach((dataset, index) => {
+        if (!dataset || typeof dataset.base_url !== "string") return;
+        const option = document.createElement("option");
+        option.value = dataset.base_url.replace(/\/+$/, "");
+        option.textContent = dataset.name || `Dataset ${index + 1}`;
+        datasetSelect.appendChild(option);
+      });
+
+      datasetSelect.disabled = false;
+    };
+
+    const restoreFromURLParams = () => {
+      const urlParams = getURLParams();
+      const paramPrefix = config.prefix === "viewerA" ? "A" : "B";
+      const datasetToRestore = urlParams[`dataset${paramPrefix}`];
+      const cellTypeToRestore = urlParams[`celltype${paramPrefix}`];
+
+      if (datasetToRestore && datasetSelect) {
+        isRestoringFromURL = true;
+
+        // Find and select the matching dataset
+        const options = Array.from(datasetSelect.options);
+        const matchingOption = options.find(
+          (opt) => opt.textContent === datasetToRestore,
+        );
+        if (matchingOption) {
+          datasetSelect.value = matchingOption.value;
+
+          // Manually trigger dataset loading
+          const selectedBase = matchingOption.value.trim();
+          const loadToken = ++currentLoadToken;
+
+          fetchDatasetData(selectedBase)
+            .then((data) => {
+              if (loadToken !== currentLoadToken) return;
+              state.baseUrl = data.baseUrl;
+              state.neuronEntries = Array.isArray(data.neuronTypes)
+                ? data.neuronTypes
+                : [];
+              state.neuronData = Array.isArray(data.neuronData)
+                ? data.neuronData
+                : [];
+              state.neuronIndex = buildNeuronIndex(state.neuronData);
+              populateNeuronOptions();
+
+              // Now restore the cell type if specified
+              if (cellTypeToRestore && neuronSelect) {
+                const neuronOptions = Array.from(neuronSelect.options);
+                const matchingNeuron = neuronOptions.find(
+                  (opt) => opt.textContent === cellTypeToRestore,
+                );
+                if (matchingNeuron) {
+                  neuronSelect.value = matchingNeuron.value;
+
+                  // Manually trigger the neuron selection
+                  const selection = matchingNeuron.value;
+                  const entryIndex = matchingNeuron.dataset.entryIndex;
+                  const typeEntry =
+                    typeof entryIndex !== "undefined"
+                      ? state.neuronEntries[Number(entryIndex)]
+                      : null;
+                  const selectionKey = normalizeKey(selection);
+                  let record = null;
+
+                  if (selectionKey && state.neuronIndex.has(selectionKey)) {
+                    record = state.neuronIndex.get(selectionKey);
+                  } else if (typeEntry) {
+                    const typeKeys = buildKeySet(typeEntry);
+                    for (const key of typeKeys) {
+                      if (state.neuronIndex.has(key)) {
+                        record = state.neuronIndex.get(key);
+                        break;
+                      }
+                    }
+                  }
+
+                  if (record) {
+                    const primaryPath = getPrimaryPath(record);
+                    if (primaryPath) {
+                      showPreviewPane();
+                      frame.src = buildPreviewUrl(state.baseUrl, primaryPath);
+                    }
+                  }
+                }
+              }
+
+              isRestoringFromURL = false;
+              updateURL();
+            })
+            .catch((error) => {
+              console.error(error);
+              isRestoringFromURL = false;
+              updateURL();
+            });
+        } else {
+          isRestoringFromURL = false;
+        }
+      }
+    };
+
+    datasetSelect.addEventListener("change", (event) => {
+      const selectedBase = (event.target.value || "").trim();
+      currentLoadToken += 1;
+
+      hidePreviewPane();
+
+      if (!selectedBase) {
+        resetNeuronSelect();
+        checkIfBothViewersEmpty();
+        updateURL();
+        return;
+      }
+
+      resetNeuronSelect();
+
+      const loadToken = currentLoadToken;
+
+      fetchDatasetData(selectedBase)
+        .then((data) => {
+          if (loadToken !== currentLoadToken) return;
+          state.baseUrl = data.baseUrl;
+          state.neuronEntries = Array.isArray(data.neuronTypes)
+            ? data.neuronTypes
+            : [];
+          state.neuronData = Array.isArray(data.neuronData)
+            ? data.neuronData
+            : [];
+          state.neuronIndex = buildNeuronIndex(state.neuronData);
+          populateNeuronOptions();
+          updateURL();
+        })
+        .catch((error) => {
+          console.error(error);
+          if (loadToken !== currentLoadToken) return;
+          state.baseUrl = "";
+          state.neuronEntries = [];
+          state.neuronData = [];
+          state.neuronIndex = new Map();
+          resetNeuronSelect();
+          hidePreviewPane();
+          checkIfBothViewersEmpty();
+          updateURL();
+        });
+    });
+
+    neuronSelect.addEventListener("change", () => {
+      const selection = neuronSelect.value;
+      if (!selection || !state.baseUrl) {
+        hidePreviewPane();
+        checkIfBothViewersEmpty();
+        updateURL();
+        return;
+      }
+
+      const selectedOption = neuronSelect.selectedOptions[0];
+      const entryIndex = selectedOption?.dataset.entryIndex;
+      const typeEntry =
+        typeof entryIndex !== "undefined"
+          ? state.neuronEntries[Number(entryIndex)]
+          : null;
+
+      const selectionKey = normalizeKey(selection);
+      let record = null;
+
+      if (selectionKey && state.neuronIndex.has(selectionKey)) {
+        record = state.neuronIndex.get(selectionKey);
+      } else if (typeEntry) {
+        const typeKeys = buildKeySet(typeEntry);
+        for (const key of typeKeys) {
+          if (state.neuronIndex.has(key)) {
+            record = state.neuronIndex.get(key);
+            break;
+          }
+        }
+      }
+
+      if (!record) {
+        hidePreviewPane();
+        checkIfBothViewersEmpty();
+        updateURL();
+        return;
+      }
+
+      const primaryPath = getPrimaryPath(record);
+      if (!primaryPath) {
+        hidePreviewPane();
+        checkIfBothViewersEmpty();
+        updateURL();
+        return;
+      }
+
+      showPreviewPane();
+      frame.src = buildPreviewUrl(state.baseUrl, primaryPath);
+      updateURL();
+    });
+
+    resetNeuronSelect();
+    populateDatasetOptions();
+
+    // Return viewer info for URL restoration
+    return { datasetSelect, neuronSelect, config, state, restoreFromURLParams };
+  };
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const registry = window.opticDatasetRegistry;
+    const datasets = Array.isArray(registry?.all?.()) ? registry.all() : [];
+
+    const viewers = viewerConfigs.map((config) => initViewer(config, datasets));
+
+    // Restore state from URL parameters
+    const urlParams = getURLParams();
+
+    // Check if we have any URL parameters to restore
+    const hasParams = urlParams.datasetA || urlParams.datasetB;
+
+    if (hasParams) {
+      // Wait for datasets to be populated, then restore
+      setTimeout(() => {
+        viewers.forEach((viewer) => {
+          if (!viewer) return;
+          viewer.restoreFromURLParams();
+        });
+      }, 100);
+    }
+
+    // Add reset functionality to neuDiff button
+    const neuDiffButton = document.querySelector('a[href="index.html"]');
+    if (neuDiffButton) {
+      neuDiffButton.addEventListener("click", (event) => {
+        event.preventDefault();
+
+        // Reset all dataset and neuron selectors
+        viewerConfigs.forEach((config) => {
+          const datasetSelect = document.getElementById(
+            `${config.prefix}-dataset-select`,
+          );
+          const neuronSelect = document.getElementById(
+            `${config.prefix}-neuron-select`,
+          );
+
+          if (datasetSelect) {
+            datasetSelect.value = "";
+          }
+          if (neuronSelect) {
+            neuronSelect.value = "";
+            neuronSelect.disabled = true;
+          }
+
+          // Hide preview panes
+          const previewPane = document.getElementById(
+            `${config.prefix}-preview`,
+          );
+          const frame = document.getElementById(`${config.prefix}-frame`);
+          if (previewPane) {
+            previewPane.classList.add("is-hidden");
+          }
+          if (frame) {
+            frame.src = "about:blank";
+          }
+        });
+
+        // Show welcome screen
+        const welcomeScreen = document.getElementById("welcome-screen");
+        if (welcomeScreen) {
+          welcomeScreen.classList.remove("is-hidden");
+        }
+
+        // Clear URL parameters
+        window.history.replaceState({}, "", "index.html");
+      });
+    }
+  });
+})();
