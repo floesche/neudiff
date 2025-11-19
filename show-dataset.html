@@ -23,47 +23,51 @@
       top: 0;
       z-index: 20;
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
+      flex-wrap: nowrap;
       gap: 0.75rem;
+      width: 100%;
       padding: 0.75rem clamp(1rem, 3vw, 2rem);
       backdrop-filter: blur(22px);
       background: rgba(4, 7, 15, 0.85);
       border-bottom: 1px solid var(--optic-border, rgba(255, 255, 255, 0.12));
     }
 
-    .viewer-header .brand-pair {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-weight: 600;
-      font-size: 1.05rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--pm-app-font-color, #f7fbff);
-    }
-
-    .primary-nav {
+    .primary-link {
       display: inline-flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      min-height: calc(var(--viewer-header-height) - 0.5rem);
+      padding-inline: 1rem;
+      flex: 0 1 calc(100% / 12);
+      max-width: calc(100% / 12);
+      min-width: 4.5rem;
     }
 
-    .control-cluster {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.65rem;
-      flex: 1 1 auto;
+    .primary-link--left {
+      justify-content: flex-start;
+      text-align: left;
+    }
+
+    .primary-link--right {
       justify-content: flex-end;
+      text-align: right;
     }
 
-    .control-group {
+    .viewer-controls {
+      flex: 0 1 calc((100% / 12) * 10 - 1.5rem);
+      max-width: calc((100% / 12) * 10 - 1.5rem);
+      min-width: 0;
+      margin-inline: auto;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 0.5rem;
-      flex: 1 1 360px;
-      min-width: 260px;
-      align-items: end;
+      grid-template-columns: repeat(4, minmax(8.25rem, 1fr));
+      gap: 0.6rem;
+      align-items: center;
+    }
+
+    .viewer-controls .selector {
+      min-width: 0;
     }
 
     .selector {
@@ -114,60 +118,63 @@
       min-height: 100000px;
     }
 
-    @media (max-width: 720px) {
+    @media (max-width: 960px) {
       .viewer-header {
-        flex-direction: column;
-        align-items: stretch;
+        flex-wrap: wrap;
       }
 
-      .primary-nav {
-        justify-content: center;
+      .primary-link {
+        flex: 1 1 100%;
+        max-width: none;
+      }
+
+      .viewer-controls {
+        flex: 1 1 100%;
+        max-width: 100%;
+        margin-inline: 0;
+        grid-template-columns: repeat(2, minmax(8.5rem, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .viewer-controls {
+        grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
       }
     }
   </style>
 </head>
 <body class="plume pm-surface pm-font-primary">
   <header class="viewer-header">
-    <div class="brand-pair" aria-hidden="true">
-      <span>neu</span><span>Diff</span>
-    </div>
+    <a class="pm-button pm-btn-primary primary-link primary-link--left" href="show-dataset.html" aria-current="page">neuDiff</a>
 
-    <nav class="primary-nav" aria-label="Primary">
-      <a class="pm-button pm-btn-primary" href="show-dataset.html" aria-current="page">neuDiff</a>
-      <a class="pm-button pm-btn-primary" href="help.html">Help</a>
-    </nav>
-
-    <div class="control-cluster" aria-label="Viewer controls">
-      <div class="control-group" data-viewer="viewerA">
-        <div class="selector">
-          <label for="viewerA-dataset-select">Dataset 1</label>
-          <select id="viewerA-dataset-select" class="pm-input" disabled>
-            <option value="">Choose dataset</option>
-          </select>
-        </div>
-        <div class="selector">
-          <label for="viewerA-neuron-select">Neuron 1</label>
-          <select id="viewerA-neuron-select" class="pm-input" disabled>
-            <option value="">Choose neuron type</option>
-          </select>
-        </div>
+    <div class="viewer-controls">
+      <div class="selector">
+        <label for="viewerA-dataset-select">Dataset 1</label>
+        <select id="viewerA-dataset-select" class="pm-input" disabled>
+          <option value="">Choose dataset</option>
+        </select>
       </div>
-
-      <div class="control-group" data-viewer="viewerB">
-        <div class="selector">
-          <label for="viewerB-dataset-select">Dataset 2</label>
-          <select id="viewerB-dataset-select" class="pm-input" disabled>
-            <option value="">Choose dataset</option>
-          </select>
-        </div>
-        <div class="selector">
-          <label for="viewerB-neuron-select">Neuron 2</label>
-          <select id="viewerB-neuron-select" class="pm-input" disabled>
-            <option value="">Choose neuron type</option>
-          </select>
-        </div>
+      <div class="selector">
+        <label for="viewerA-neuron-select">Neuron 1</label>
+        <select id="viewerA-neuron-select" class="pm-input" disabled>
+          <option value="">Choose neuron type</option>
+        </select>
+      </div>
+      <div class="selector">
+        <label for="viewerB-dataset-select">Dataset 2</label>
+        <select id="viewerB-dataset-select" class="pm-input" disabled>
+          <option value="">Choose dataset</option>
+        </select>
+      </div>
+      <div class="selector">
+        <label for="viewerB-neuron-select">Neuron 2</label>
+        <select id="viewerB-neuron-select" class="pm-input" disabled>
+          <option value="">Choose neuron type</option>
+        </select>
       </div>
     </div>
+
+    <a class="pm-button pm-btn-primary primary-link primary-link--right" href="help.html">Help</a>
   </header>
 
   <main class="viewer-split" aria-label="Neuron previews">
