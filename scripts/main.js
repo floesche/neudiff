@@ -360,6 +360,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const welcomeScreen = document.getElementById("welcome-screen");
 
+    // Get neuron select wrapper for loading spinner
+    const neuronSelectWrapper = neuronSelect.closest(".selector");
+
+    // Helper functions for loading state
+    const setLoadingState = (isLoading) => {
+      // Disable all dropdowns
+      const allSelects = document.querySelectorAll(".viewer-controls select");
+      allSelects.forEach((select) => {
+        select.disabled = isLoading;
+      });
+
+      // Show/hide spinner on neuron select
+      if (neuronSelectWrapper) {
+        if (isLoading) {
+          neuronSelectWrapper.classList.add("is-loading");
+        } else {
+          neuronSelectWrapper.classList.remove("is-loading");
+        }
+      }
+    };
+
     const hidePreviewPane = () => {
       frame.src = "about:blank";
       previewPane.classList.add("is-hidden");
@@ -484,6 +505,9 @@ document.addEventListener("DOMContentLoaded", () => {
           const selectedBase = matchingOption.value.trim();
           const loadToken = ++currentLoadToken;
 
+          // Enable loading state
+          setLoadingState(true);
+
           fetchDatasetData(selectedBase)
             .then((data) => {
               if (loadToken !== currentLoadToken) return;
@@ -540,11 +564,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
               isRestoringFromURL = false;
               updateURL();
+
+              // Disable loading state after DOM updates complete
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  setLoadingState(false);
+                });
+              });
             })
             .catch((error) => {
               console.error(error);
               isRestoringFromURL = false;
               updateURL();
+
+              // Disable loading state after DOM updates complete
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  setLoadingState(false);
+                });
+              });
             });
         } else {
           isRestoringFromURL = false;
@@ -569,6 +607,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const loadToken = currentLoadToken;
 
+      // Enable loading state
+      setLoadingState(true);
+
       fetchDatasetData(selectedBase)
         .then((data) => {
           if (loadToken !== currentLoadToken) return;
@@ -582,6 +623,13 @@ document.addEventListener("DOMContentLoaded", () => {
           state.neuronIndex = buildNeuronIndex(state.neuronData);
           populateNeuronOptions();
           updateURL();
+
+          // Disable loading state after DOM updates complete
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setLoadingState(false);
+            });
+          });
         })
         .catch((error) => {
           console.error(error);
@@ -594,6 +642,13 @@ document.addEventListener("DOMContentLoaded", () => {
           hidePreviewPane();
           checkIfBothViewersEmpty();
           updateURL();
+
+          // Disable loading state after DOM updates complete
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setLoadingState(false);
+            });
+          });
         });
     });
 
