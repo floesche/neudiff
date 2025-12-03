@@ -72,6 +72,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const neuronSelect = document.getElementById(
         `${config.prefix}-neuron-select`,
       );
+      const hemisphereSelect = document.getElementById(
+        `${config.prefix}-hemisphere-select`,
+      );
 
       if (datasetSelect && datasetSelect.value) {
         const datasetName = datasetSelect.selectedOptions[0]?.textContent;
@@ -92,6 +95,13 @@ document.addEventListener("DOMContentLoaded", () => {
           );
         }
       }
+
+      if (hemisphereSelect && hemisphereSelect.value) {
+        params.set(
+          `hemisphere-${config.prefix.replace("viewer", "").toLowerCase()}`,
+          hemisphereSelect.value,
+        );
+      }
     });
 
     const newURL = params.toString() ? `?${params.toString()}` : "index.html";
@@ -103,110 +113,11 @@ document.addEventListener("DOMContentLoaded", () => {
     return {
       datasetA: params.get("dataset-a"),
       celltypeA: params.get("celltype-a"),
+      hemisphereA: params.get("hemisphere-a"),
       datasetB: params.get("dataset-b"),
       celltypeB: params.get("celltype-b"),
+      hemisphereB: params.get("hemisphere-b"),
     };
-  };
-
-  const skipWhitespaceAndComments = (text, start = 0) => {
-    let index = start;
-    while (index < text.length) {
-      const char = text[index];
-      const next = text[index + 1];
-      if (/\s/.test(char)) {
-        index += 1;
-        continue;
-      }
-      if (char === "/" && next === "/") {
-        index += 2;
-        while (index < text.length && text[index] !== "\n") index += 1;
-        continue;
-      }
-      if (char === "/" && next === "*") {
-        index += 2;
-        while (
-          index < text.length - 1 &&
-          !(text[index] === "*" && text[index + 1] === "/")
-        ) {
-          index += 1;
-        }
-        index += 2;
-        continue;
-      }
-      break;
-    }
-    return index;
-  };
-
-  const captureBalancedLiteral = (source, startIndex) => {
-    const opening = source[startIndex];
-    const closing = opening === "[" ? "]" : opening === "{" ? "}" : null;
-    if (!closing) return null;
-
-    let depth = 0;
-    let inString = false;
-    let stringChar = "";
-    let escapeNext = false;
-
-    for (let i = startIndex; i < source.length; i += 1) {
-      const char = source[i];
-
-      if (inString) {
-        if (escapeNext) {
-          escapeNext = false;
-          continue;
-        }
-        if (char === "\\") {
-          escapeNext = true;
-          continue;
-        }
-        if (char === stringChar) {
-          inString = false;
-          stringChar = "";
-        }
-        continue;
-      }
-
-      if (char === '"' || char === "'" || char === "`") {
-        inString = true;
-        stringChar = char;
-        continue;
-      }
-
-      if (char === opening) {
-        depth += 1;
-      } else if (char === closing) {
-        depth -= 1;
-        if (depth === 0) {
-          return source.slice(startIndex, i + 1);
-        }
-      }
-    }
-
-    return null;
-  };
-
-  const extractConstLiteral = (source, constName) => {
-    const pattern = new RegExp(`const\\s+${constName}\\s*=`);
-    const match = pattern.exec(source);
-    if (!match) return null;
-    const literalStart = skipWhitespaceAndComments(
-      source,
-      match.index + match[0].length,
-    );
-    return captureBalancedLiteral(source, literalStart);
-  };
-
-  const parseConstValue = (source, constName) => {
-    const literal = extractConstLiteral(source, constName);
-    if (!literal) return null;
-    try {
-      // eslint-disable-next-line no-new-func
-      return new Function(`return (${literal});`)();
-    } catch (error) {
-      console.error(`Failed to parse ${constName}`, error);
-      return null;
-    }
   };
 
   const fetchDatasetData = (rawBaseUrl) => {
@@ -220,28 +131,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const loadPromise = (async () => {
-      const resourceUrl = `${normalizedBase}/static/js/neuron-search.js`;
+      const resourceUrl = `${normalizedBase}/data/neurons.json`;
       const response = await fetch(resourceUrl, { cache: "no-store" });
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch neuron-search.js (HTTP ${response.status}).`,
+          `Failed to fetch neurons.json (HTTP ${response.status}).`,
         );
       }
 
-      const scriptText = await response.text();
-      const neuronTypes = parseConstValue(scriptText, "NEURON_TYPES_DATA");
-      const neuronData = parseConstValue(scriptText, "NEURON_DATA");
+      const data = await response.json();
 
-      if (!Array.isArray(neuronTypes)) {
-        throw new Error(
-          "neuron-search.js did not expose a parseable NEURON_TYPES_DATA array.",
-        );
+      if (!Array.isArray(data.names)) {
+        throw new Error("neurons.json did not contain a valid names array.");
       }
 
       return {
         baseUrl: normalizedBase,
-        neuronTypes,
-        neuronData: Array.isArray(neuronData) ? neuronData : [],
+        neuronTypes: data.names,
+        neuronData: Array.isArray(data.neurons) ? data.neurons : [],
       };
     })().catch((error) => {
       datasetCache.delete(normalizedBase);
@@ -304,8 +211,22 @@ document.addEventListener("DOMContentLoaded", () => {
     return keys.size ? keys.values().next().value : "";
   };
 
-  const getPrimaryPath = (entry) => {
+  const getPrimaryPath = (entry, hemisphere = "combined") => {
     if (!entry || typeof entry !== "object") return "";
+
+    // Check for urls dictionary
+    if (entry.urls && typeof entry.urls === "object") {
+      const path = entry.urls[hemisphere];
+      if (typeof path === "string" && path.trim()) {
+        return `/types/${path.trim()}`;
+      }
+      // Fallback to combined if requested hemisphere doesn't exist
+      if (hemisphere !== "combined" && entry.urls.combined) {
+        return `/types/${entry.urls.combined.trim()}`;
+      }
+    }
+
+    // Legacy fallback
     const candidates = [
       "primary_url",
       "primaryUrl",
@@ -320,6 +241,18 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
     return "";
+  };
+
+  const getAvailableHemispheres = (entry) => {
+    if (!entry || typeof entry !== "object" || !entry.urls) {
+      return [];
+    }
+    if (typeof entry.urls === "object") {
+      return Object.keys(entry.urls).filter(
+        (key) => typeof entry.urls[key] === "string" && entry.urls[key].trim(),
+      );
+    }
+    return [];
   };
 
   const buildPreviewUrl = (baseUrl, primaryPath) => {
@@ -342,10 +275,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const neuronSelect = document.getElementById(
       `${config.prefix}-neuron-select`,
     );
+    const hemisphereSelect = document.getElementById(
+      `${config.prefix}-hemisphere-select`,
+    );
     const frame = document.getElementById(`${config.prefix}-frame`);
     const previewPane = document.getElementById(`${config.prefix}-preview`);
 
-    if (!datasetSelect || !neuronSelect || !frame || !previewPane) {
+    if (
+      !datasetSelect ||
+      !neuronSelect ||
+      !hemisphereSelect ||
+      !frame ||
+      !previewPane
+    ) {
       return;
     }
 
@@ -354,6 +296,7 @@ document.addEventListener("DOMContentLoaded", () => {
       neuronEntries: [],
       neuronData: [],
       neuronIndex: new Map(),
+      currentNeuronRecord: null,
     };
 
     let currentLoadToken = 0;
@@ -423,8 +366,54 @@ document.addEventListener("DOMContentLoaded", () => {
       state.neuronEntries = [];
       state.neuronData = [];
       state.neuronIndex = new Map();
+      state.currentNeuronRecord = null;
+      resetHemisphereSelect();
       hidePreviewPane();
       checkIfBothViewersEmpty();
+    };
+
+    const resetHemisphereSelect = () => {
+      hemisphereSelect.innerHTML = "";
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "Choose hemisphere";
+      option.disabled = true;
+      option.selected = true;
+      hemisphereSelect.appendChild(option);
+      hemisphereSelect.disabled = true;
+    };
+
+    const populateHemisphereOptions = (neuronRecord) => {
+      hemisphereSelect.innerHTML = "";
+      const defaultOption = document.createElement("option");
+      defaultOption.value = "";
+      defaultOption.textContent = "Choose hemisphere";
+      defaultOption.disabled = true;
+      hemisphereSelect.appendChild(defaultOption);
+
+      const hemispheres = getAvailableHemispheres(neuronRecord);
+
+      if (hemispheres.length === 0) {
+        hemisphereSelect.disabled = true;
+        return;
+      }
+
+      hemispheres.forEach((hemisphere) => {
+        const option = document.createElement("option");
+        option.value = hemisphere;
+        option.textContent =
+          hemisphere.charAt(0).toUpperCase() + hemisphere.slice(1);
+        hemisphereSelect.appendChild(option);
+      });
+
+      // Auto-select "combined" if available, otherwise select first option
+      if (hemispheres.includes("combined")) {
+        hemisphereSelect.value = "combined";
+      } else if (hemispheres.length > 0) {
+        hemisphereSelect.value = hemispheres[0];
+      }
+
+      hemisphereSelect.disabled = false;
     };
 
     const populateNeuronOptions = () => {
@@ -438,10 +427,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       state.neuronEntries.forEach((entry, index) => {
         const option = document.createElement("option");
-        const label = getEntryLabel(entry);
+        // For the new structure, entries are just strings (names)
+        const label = typeof entry === "string" ? entry : getEntryLabel(entry);
         option.textContent = label;
         const bestKey =
-          getPrimaryKey(entry) || normalizeKey(label) || `__entry_${index}`;
+          typeof entry === "string"
+            ? normalizeKey(entry)
+            : getPrimaryKey(entry) || normalizeKey(label) || `__entry_${index}`;
         option.value = bestKey;
         option.dataset.entryIndex = String(index);
         neuronSelect.appendChild(option);
@@ -489,6 +481,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const paramPrefix = config.prefix === "viewerA" ? "A" : "B";
       const datasetToRestore = urlParams[`dataset${paramPrefix}`];
       const cellTypeToRestore = urlParams[`celltype${paramPrefix}`];
+      const hemisphereToRestore = urlParams[`hemisphere${paramPrefix}`];
 
       if (datasetToRestore && datasetSelect) {
         isRestoringFromURL = true;
@@ -553,7 +546,28 @@ document.addEventListener("DOMContentLoaded", () => {
                   }
 
                   if (record) {
-                    const primaryPath = getPrimaryPath(record);
+                    state.currentNeuronRecord = record;
+                    populateHemisphereOptions(record);
+
+                    // Restore hemisphere if specified, otherwise use the auto-selected one
+                    if (hemisphereToRestore && hemisphereSelect) {
+                      const hemisphereOptions = Array.from(
+                        hemisphereSelect.options,
+                      );
+                      const matchingHemisphere = hemisphereOptions.find(
+                        (opt) => opt.value === hemisphereToRestore,
+                      );
+                      if (matchingHemisphere) {
+                        hemisphereSelect.value = hemisphereToRestore;
+                      }
+                    }
+
+                    const selectedHemisphere =
+                      hemisphereSelect.value || "combined";
+                    const primaryPath = getPrimaryPath(
+                      record,
+                      selectedHemisphere,
+                    );
                     if (primaryPath) {
                       showPreviewPane();
                       frame.src = buildPreviewUrl(state.baseUrl, primaryPath);
@@ -655,6 +669,7 @@ document.addEventListener("DOMContentLoaded", () => {
     neuronSelect.addEventListener("change", () => {
       const selection = neuronSelect.value;
       if (!selection || !state.baseUrl) {
+        resetHemisphereSelect();
         hidePreviewPane();
         checkIfBothViewersEmpty();
         updateURL();
@@ -684,13 +699,41 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       if (!record) {
+        resetHemisphereSelect();
         hidePreviewPane();
         checkIfBothViewersEmpty();
         updateURL();
         return;
       }
 
-      const primaryPath = getPrimaryPath(record);
+      state.currentNeuronRecord = record;
+      populateHemisphereOptions(record);
+
+      // Auto-select combined (or first available) and load it
+      const selectedHemisphere = hemisphereSelect.value || "combined";
+      const primaryPath = getPrimaryPath(record, selectedHemisphere);
+      if (!primaryPath) {
+        hidePreviewPane();
+        checkIfBothViewersEmpty();
+        updateURL();
+        return;
+      }
+
+      showPreviewPane();
+      frame.src = buildPreviewUrl(state.baseUrl, primaryPath);
+      updateURL();
+    });
+
+    hemisphereSelect.addEventListener("change", () => {
+      const hemisphere = hemisphereSelect.value;
+      if (!hemisphere || !state.currentNeuronRecord || !state.baseUrl) {
+        hidePreviewPane();
+        checkIfBothViewersEmpty();
+        updateURL();
+        return;
+      }
+
+      const primaryPath = getPrimaryPath(state.currentNeuronRecord, hemisphere);
       if (!primaryPath) {
         hidePreviewPane();
         checkIfBothViewersEmpty();
@@ -707,7 +750,14 @@ document.addEventListener("DOMContentLoaded", () => {
     populateDatasetOptions();
 
     // Return viewer info for URL restoration
-    return { datasetSelect, neuronSelect, config, state, restoreFromURLParams };
+    return {
+      datasetSelect,
+      neuronSelect,
+      hemisphereSelect,
+      config,
+      state,
+      restoreFromURLParams,
+    };
   };
 
   document.addEventListener("DOMContentLoaded", () => {
