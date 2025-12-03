@@ -678,6 +678,281 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const viewers = viewerConfigs.map((config) => initViewer(config, datasets));
 
+    // Track iframe src changes to detect navigation
+    const iframeUrlTrackers = viewerConfigs.map((config) => ({
+      prefix: config.prefix,
+      lastSrc: "",
+    }));
+
+    function updateDropdownsFromIframeUrl(viewerIndex, newUrl) {
+      const viewer = viewers[viewerIndex];
+      if (
+        !viewer ||
+        !viewer.state ||
+        !viewer.state.neuronData ||
+        !viewer.state.baseUrl
+      ) {
+        return;
+      }
+
+      // Match the URL against known URLs in neurons.json
+      // Don't parse - instead search through all neuron records
+      let matchedRecord = null;
+      let matchedHemisphere = null;
+
+      // Try to match the URL against each neuron's URLs
+      for (const neuronRecord of viewer.state.neuronData) {
+        if (!neuronRecord || !neuronRecord.urls) continue;
+
+        // Check each hemisphere variant
+        for (const [hemisphere, relativeUrl] of Object.entries(
+          neuronRecord.urls,
+        )) {
+          if (!relativeUrl) continue;
+
+          // Build the full URL that would match
+          const fullUrl = buildPreviewUrl(
+            viewer.state.baseUrl,
+            `/types/${relativeUrl}`,
+          );
+
+          // Compare URLs (normalize by removing trailing slashes and fragments)
+          const normalizedNewUrl = newUrl.split("#")[0].replace(/\/+$/, "");
+          const normalizedFullUrl = fullUrl.split("#")[0].replace(/\/+$/, "");
+
+          if (normalizedNewUrl === normalizedFullUrl) {
+            matchedRecord = neuronRecord;
+            matchedHemisphere = hemisphere;
+            break;
+          }
+        }
+
+        if (matchedRecord) break;
+      }
+
+      if (!matchedRecord) {
+        // Clear cell type and hemisphere dropdowns when navigating to non-cell-type pages
+        const neuronSelect = viewer.neuronSelect;
+        const hemisphereSelect = viewer.hemisphereSelect;
+
+        if (neuronSelect && neuronSelect.value) {
+          // Temporarily disable change events
+          const originalNeuronOnChange = neuronSelect.onchange;
+          const originalHemisphereOnChange = hemisphereSelect
+            ? hemisphereSelect.onchange
+            : null;
+
+          neuronSelect.onchange = null;
+          if (hemisphereSelect) hemisphereSelect.onchange = null;
+
+          // Clear selections
+          neuronSelect.value = "";
+          if (hemisphereSelect) {
+            hemisphereSelect.value = "";
+            hemisphereSelect.disabled = true;
+          }
+
+          // Clear current record
+          viewer.state.currentNeuronRecord = null;
+
+          // Restore change handlers
+          neuronSelect.onchange = originalNeuronOnChange;
+          if (hemisphereSelect)
+            hemisphereSelect.onchange = originalHemisphereOnChange;
+
+          // Update URL to remove cell type and hemisphere parameters
+          updateURL();
+        }
+
+        return; // URL not found in current dataset
+      }
+
+      const record = matchedRecord;
+      const hemisphere = matchedHemisphere;
+      const normalizedCellType = normalizeKey(record.name);
+
+      // Update the neuron select dropdown if it's different
+      const neuronSelect = viewer.neuronSelect;
+      const hemisphereSelect = viewer.hemisphereSelect;
+
+      if (neuronSelect && neuronSelect.value !== normalizedCellType) {
+        // Temporarily disable change event to prevent loops
+        const originalNeuronOnChange = neuronSelect.onchange;
+        neuronSelect.onchange = null;
+
+        neuronSelect.value = normalizedCellType;
+        viewer.state.currentNeuronRecord = record;
+
+        // Restore the change handler
+        neuronSelect.onchange = originalNeuronOnChange;
+
+        // Update hemisphere options based on the new neuron
+        if (hemisphereSelect) {
+          // Get available hemispheres for this cell type
+          const availableHemispheres = getAvailableHemispheres(record);
+
+          // Temporarily disable change event
+          const originalHemisphereOnChange = hemisphereSelect.onchange;
+          hemisphereSelect.onchange = null;
+
+          // Clear and repopulate hemisphere select
+          hemisphereSelect.innerHTML = "";
+          const defaultOption = document.createElement("option");
+          defaultOption.value = "";
+          defaultOption.textContent = "Choose hemisphere";
+          hemisphereSelect.appendChild(defaultOption);
+
+          availableHemispheres.forEach((hem) => {
+            const option = document.createElement("option");
+            option.value = hem;
+            option.textContent = hem.charAt(0).toUpperCase() + hem.slice(1);
+            hemisphereSelect.appendChild(option);
+          });
+
+          hemisphereSelect.disabled = availableHemispheres.length === 0;
+
+          // Set the hemisphere value after options are populated
+          if (availableHemispheres.includes(hemisphere)) {
+            hemisphereSelect.value = hemisphere;
+          } else if (availableHemispheres.includes("combined")) {
+            hemisphereSelect.value = "combined";
+          }
+
+          // Restore the change handler
+          hemisphereSelect.onchange = originalHemisphereOnChange;
+        }
+      } else if (hemisphereSelect && hemisphereSelect.value !== hemisphere) {
+        // Only update hemisphere if neuron didn't change
+        const availableHemispheres = getAvailableHemispheres(record);
+
+        if (availableHemispheres.includes(hemisphere)) {
+          // Temporarily disable change event to prevent loops
+          const originalOnChange = hemisphereSelect.onchange;
+          hemisphereSelect.onchange = null;
+
+          hemisphereSelect.value = hemisphere;
+
+          // Restore the change handler
+          hemisphereSelect.onchange = originalOnChange;
+        }
+      }
+
+      // Update the URL parameters to reflect the change
+      updateURL();
+    }
+
+    // Listen for URL change messages from iframes
+    window.addEventListener("message", (event) => {
+      if (!event.data) {
+        return;
+      }
+
+      // Support multiple message formats from different iframe-bridge.js versions
+      let newUrl = null;
+      let messageType = event.data.type;
+
+      // Check for our neuview-url-changed format
+      if (messageType === "neuview-url-changed") {
+        newUrl = event.data.url;
+      }
+      // Check for external iframe-bridge.js formats
+      else if (messageType === "navigationRequest") {
+        // Sent when user clicks a link in the iframe
+        newUrl = event.data.data?.url || event.data.url;
+      } else if (messageType === "pageLoaded") {
+        // Sent when page finishes loading
+        newUrl = event.data.data?.url || event.data.url;
+      } else {
+        // Not a message type we care about
+        return;
+      }
+
+      if (!newUrl) {
+        return;
+      }
+
+      // Determine which iframe sent the message
+      let viewerIndex = -1;
+      viewers.forEach((viewer, index) => {
+        if (!viewer) return;
+        const frame = document.getElementById(
+          `${viewerConfigs[index].prefix}-frame`,
+        );
+        if (frame && frame.contentWindow === event.source) {
+          viewerIndex = index;
+        }
+      });
+
+      if (viewerIndex === -1) {
+        return; // Message not from our iframes
+      }
+
+      updateDropdownsFromIframeUrl(viewerIndex, newUrl);
+    });
+
+    // Monitor iframe src attribute changes using MutationObserver
+    viewerConfigs.forEach((config, index) => {
+      const frame = document.getElementById(`${config.prefix}-frame`);
+      if (!frame) return;
+
+      // Track initial src
+      iframeUrlTrackers[index].lastSrc = frame.src;
+
+      // Create a MutationObserver to watch for src attribute changes
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (
+            mutation.type === "attributes" &&
+            mutation.attributeName === "src"
+          ) {
+            const newSrc = frame.src;
+            if (
+              newSrc !== iframeUrlTrackers[index].lastSrc &&
+              newSrc !== "about:blank" &&
+              !newSrc.startsWith("about:")
+            ) {
+              iframeUrlTrackers[index].lastSrc = newSrc;
+              updateDropdownsFromIframeUrl(index, newSrc);
+            }
+          }
+        });
+      });
+
+      // Start observing the iframe for attribute changes
+      observer.observe(frame, {
+        attributes: true,
+        attributeFilter: ["src"],
+      });
+
+      // Also handle iframe load events to catch navigation
+      frame.addEventListener("load", () => {
+        // Wait a bit for the iframe to fully load
+        setTimeout(() => {
+          let detectedUrl = null;
+
+          try {
+            // Try to get the iframe's location (only works for same-origin)
+            const iframeUrl = frame.contentWindow.location.href;
+            detectedUrl = iframeUrl;
+          } catch (e) {
+            // Cross-origin - can't access location or inject script
+            // Fall back to using the src attribute
+            detectedUrl = frame.src;
+          }
+
+          if (
+            detectedUrl &&
+            detectedUrl !== iframeUrlTrackers[index].lastSrc &&
+            detectedUrl !== "about:blank" &&
+            !detectedUrl.startsWith("about:")
+          ) {
+            iframeUrlTrackers[index].lastSrc = detectedUrl;
+            updateDropdownsFromIframeUrl(index, detectedUrl);
+          }
+        }, 100);
+      });
+    });
+
     // Restore state from URL parameters
     const urlParams = getURLParams();
 
