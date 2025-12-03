@@ -159,63 +159,30 @@ document.addEventListener("DOMContentLoaded", () => {
     return loadPromise;
   };
 
-  const getEntryLabel = (entry) =>
-    typeof entry === "string"
-      ? entry
-      : entry?.label || entry?.name || entry?.id || entry?.slug || "Neuron";
-
   const normalizeKey = (value) =>
     typeof value === "string" || typeof value === "number"
       ? value.toString().trim().toLowerCase()
       : "";
 
-  const buildKeySet = (item) => {
-    const keys = new Set();
-    const addKey = (candidate) => {
-      const normalized = normalizeKey(candidate);
-      if (normalized) keys.add(normalized);
-    };
-
-    if (typeof item === "string" || typeof item === "number") {
-      addKey(item);
-      return keys;
-    }
-
-    if (item && typeof item === "object") {
-      ["name", "label", "id", "slug", "type"].forEach((field) =>
-        addKey(item[field]),
-      );
-      if (Array.isArray(item.aliases)) {
-        item.aliases.forEach(addKey);
-      }
-    }
-
-    return keys;
-  };
-
   const buildNeuronIndex = (records) => {
     const index = new Map();
     if (!Array.isArray(records)) return index;
     records.forEach((record) => {
-      buildKeySet(record).forEach((key) => {
-        if (!index.has(key)) {
+      if (record && typeof record === "object" && record.name) {
+        const key = normalizeKey(record.name);
+        if (key && !index.has(key)) {
           index.set(key, record);
         }
-      });
+      }
     });
     return index;
   };
 
-  const getPrimaryKey = (entry) => {
-    const keys = buildKeySet(entry);
-    return keys.size ? keys.values().next().value : "";
-  };
-
   const getPrimaryPath = (entry, hemisphere = "combined") => {
-    if (!entry || typeof entry !== "object") return "";
+    if (!entry || typeof entry !== "object" || !entry.urls) return "";
 
     // Check for urls dictionary
-    if (entry.urls && typeof entry.urls === "object") {
+    if (typeof entry.urls === "object") {
       const path = entry.urls[hemisphere];
       if (typeof path === "string" && path.trim()) {
         return `/types/${path.trim()}`;
@@ -226,20 +193,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // Legacy fallback
-    const candidates = [
-      "primary_url",
-      "primaryUrl",
-      "primaryURL",
-      "url",
-      "href",
-    ];
-    for (const key of candidates) {
-      const value = entry[key];
-      if (typeof value === "string" && value.trim()) {
-        return value.trim();
-      }
-    }
     return "";
   };
 
@@ -425,17 +378,11 @@ document.addEventListener("DOMContentLoaded", () => {
       defaultOption.selected = true;
       neuronSelect.appendChild(defaultOption);
 
-      state.neuronEntries.forEach((entry, index) => {
+      state.neuronEntries.forEach((entry) => {
         const option = document.createElement("option");
-        // For the new structure, entries are just strings (names)
-        const label = typeof entry === "string" ? entry : getEntryLabel(entry);
-        option.textContent = label;
-        const bestKey =
-          typeof entry === "string"
-            ? normalizeKey(entry)
-            : getPrimaryKey(entry) || normalizeKey(label) || `__entry_${index}`;
-        option.value = bestKey;
-        option.dataset.entryIndex = String(index);
+        // Entries are strings (names from the names array)
+        option.textContent = entry;
+        option.value = normalizeKey(entry);
         neuronSelect.appendChild(option);
       });
 
@@ -524,26 +471,10 @@ document.addEventListener("DOMContentLoaded", () => {
                   neuronSelect.value = matchingNeuron.value;
 
                   // Manually trigger the neuron selection
-                  const selection = matchingNeuron.value;
-                  const entryIndex = matchingNeuron.dataset.entryIndex;
-                  const typeEntry =
-                    typeof entryIndex !== "undefined"
-                      ? state.neuronEntries[Number(entryIndex)]
-                      : null;
-                  const selectionKey = normalizeKey(selection);
-                  let record = null;
-
-                  if (selectionKey && state.neuronIndex.has(selectionKey)) {
-                    record = state.neuronIndex.get(selectionKey);
-                  } else if (typeEntry) {
-                    const typeKeys = buildKeySet(typeEntry);
-                    for (const key of typeKeys) {
-                      if (state.neuronIndex.has(key)) {
-                        record = state.neuronIndex.get(key);
-                        break;
-                      }
-                    }
-                  }
+                  const selectionKey = normalizeKey(matchingNeuron.value);
+                  const record = selectionKey
+                    ? state.neuronIndex.get(selectionKey)
+                    : null;
 
                   if (record) {
                     state.currentNeuronRecord = record;
@@ -676,27 +607,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      const selectedOption = neuronSelect.selectedOptions[0];
-      const entryIndex = selectedOption?.dataset.entryIndex;
-      const typeEntry =
-        typeof entryIndex !== "undefined"
-          ? state.neuronEntries[Number(entryIndex)]
-          : null;
-
       const selectionKey = normalizeKey(selection);
-      let record = null;
-
-      if (selectionKey && state.neuronIndex.has(selectionKey)) {
-        record = state.neuronIndex.get(selectionKey);
-      } else if (typeEntry) {
-        const typeKeys = buildKeySet(typeEntry);
-        for (const key of typeKeys) {
-          if (state.neuronIndex.has(key)) {
-            record = state.neuronIndex.get(key);
-            break;
-          }
-        }
-      }
+      const record = selectionKey ? state.neuronIndex.get(selectionKey) : null;
 
       if (!record) {
         resetHemisphereSelect();
