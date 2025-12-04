@@ -678,12 +678,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const viewers = viewerConfigs.map((config) => initViewer(config, datasets));
 
-    // Track iframe src changes to detect navigation
-    const iframeUrlTrackers = viewerConfigs.map((config) => ({
-      prefix: config.prefix,
-      lastSrc: "",
-    }));
-
+    // Helper function to update dropdowns based on iframe URL changes
     function updateDropdownsFromIframeUrl(viewerIndex, newUrl) {
       const viewer = viewers[viewerIndex];
       if (
@@ -841,115 +836,23 @@ document.addEventListener("DOMContentLoaded", () => {
       updateURL();
     }
 
-    // Listen for URL change messages from iframes
-    window.addEventListener("message", (event) => {
-      if (!event.data) {
-        return;
-      }
-
-      // Support multiple message formats from different iframe-bridge.js versions
-      let newUrl = null;
-      let messageType = event.data.type;
-
-      // Check for our neuview-url-changed format
-      if (messageType === "neuview-url-changed") {
-        newUrl = event.data.url;
-      }
-      // Check for external iframe-bridge.js formats
-      else if (messageType === "navigationRequest") {
-        // Sent when user clicks a link in the iframe
-        newUrl = event.data.data?.url || event.data.url;
-      } else if (messageType === "pageLoaded") {
-        // Sent when page finishes loading
-        newUrl = event.data.data?.url || event.data.url;
-      } else {
-        // Not a message type we care about
-        return;
-      }
-
-      if (!newUrl) {
-        return;
-      }
-
-      // Determine which iframe sent the message
-      let viewerIndex = -1;
-      viewers.forEach((viewer, index) => {
-        if (!viewer) return;
-        const frame = document.getElementById(
-          `${viewerConfigs[index].prefix}-frame`,
-        );
-        if (frame && frame.contentWindow === event.source) {
-          viewerIndex = index;
-        }
-      });
-
-      if (viewerIndex === -1) {
-        return; // Message not from our iframes
-      }
-
-      updateDropdownsFromIframeUrl(viewerIndex, newUrl);
-    });
-
-    // Monitor iframe src attribute changes using MutationObserver
-    viewerConfigs.forEach((config, index) => {
+    // Initialize NeuviewIframeController for each viewer
+    const iframeControllers = viewerConfigs.map((config, index) => {
       const frame = document.getElementById(`${config.prefix}-frame`);
-      if (!frame) return;
+      if (!frame) return null;
 
-      // Track initial src
-      iframeUrlTrackers[index].lastSrc = frame.src;
-
-      // Create a MutationObserver to watch for src attribute changes
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
+      return new NeuviewIframeController(frame, {
+        onUrlChanged: function (data) {
+          // Update dropdowns when iframe URL changes
           if (
-            mutation.type === "attributes" &&
-            mutation.attributeName === "src"
+            data.currentUrl &&
+            data.currentUrl !== "about:blank" &&
+            !data.currentUrl.startsWith("about:")
           ) {
-            const newSrc = frame.src;
-            if (
-              newSrc !== iframeUrlTrackers[index].lastSrc &&
-              newSrc !== "about:blank" &&
-              !newSrc.startsWith("about:")
-            ) {
-              iframeUrlTrackers[index].lastSrc = newSrc;
-              updateDropdownsFromIframeUrl(index, newSrc);
-            }
+            updateDropdownsFromIframeUrl(index, data.currentUrl);
           }
-        });
-      });
-
-      // Start observing the iframe for attribute changes
-      observer.observe(frame, {
-        attributes: true,
-        attributeFilter: ["src"],
-      });
-
-      // Also handle iframe load events to catch navigation
-      frame.addEventListener("load", () => {
-        // Wait a bit for the iframe to fully load
-        setTimeout(() => {
-          let detectedUrl = null;
-
-          try {
-            // Try to get the iframe's location (only works for same-origin)
-            const iframeUrl = frame.contentWindow.location.href;
-            detectedUrl = iframeUrl;
-          } catch (e) {
-            // Cross-origin - can't access location or inject script
-            // Fall back to using the src attribute
-            detectedUrl = frame.src;
-          }
-
-          if (
-            detectedUrl &&
-            detectedUrl !== iframeUrlTrackers[index].lastSrc &&
-            detectedUrl !== "about:blank" &&
-            !detectedUrl.startsWith("about:")
-          ) {
-            iframeUrlTrackers[index].lastSrc = detectedUrl;
-            updateDropdownsFromIframeUrl(index, detectedUrl);
-          }
-        }, 100);
+        },
+        debug: false,
       });
     });
 
