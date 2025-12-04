@@ -852,7 +852,51 @@ document.addEventListener("DOMContentLoaded", () => {
             updateDropdownsFromIframeUrl(index, data.currentUrl);
           }
         },
+        onNavigationRequest: function (data) {
+          // Also update on navigation requests for faster response
+          if (
+            data.url &&
+            data.url !== "about:blank" &&
+            !data.url.startsWith("about:")
+          ) {
+            updateDropdownsFromIframeUrl(index, data.url);
+          }
+        },
         debug: false,
+      });
+    });
+
+    // Add immediate src monitoring for instant feedback (hybrid approach)
+    // This catches src changes before the iframe sends messages back
+    viewerConfigs.forEach((config, index) => {
+      const frame = document.getElementById(`${config.prefix}-frame`);
+      if (!frame) return;
+
+      let lastSrc = frame.src;
+
+      // Monitor src attribute changes with MutationObserver for instant updates
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (
+            mutation.type === "attributes" &&
+            mutation.attributeName === "src"
+          ) {
+            const newSrc = frame.src;
+            if (
+              newSrc !== lastSrc &&
+              newSrc !== "about:blank" &&
+              !newSrc.startsWith("about:")
+            ) {
+              lastSrc = newSrc;
+              updateDropdownsFromIframeUrl(index, newSrc);
+            }
+          }
+        });
+      });
+
+      observer.observe(frame, {
+        attributes: true,
+        attributeFilter: ["src"],
       });
     });
 
