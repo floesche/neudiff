@@ -81,6 +81,14 @@
       return;
     }
 
+    // CRITICAL: Verify the message came from THIS iframe, not another iframe
+    if (
+      !this.iframe.contentWindow ||
+      event.source !== this.iframe.contentWindow
+    ) {
+      return;
+    }
+
     this._log("Received message:", event.data);
 
     const { type, data } = event.data;

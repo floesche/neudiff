@@ -678,8 +678,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const viewers = viewerConfigs.map((config) => initViewer(config, datasets));
 
+    // Track last processed URLs for each viewer to prevent duplicate updates
+    const lastProcessedUrls = new Map();
+
+    // Debug flag - set to true to enable detailed logging
+    const DEBUG_DROPDOWN_SYNC = false;
+
     // Helper function to update dropdowns based on iframe URL changes
     function updateDropdownsFromIframeUrl(viewerIndex, newUrl) {
+      // Validate viewer index
+      if (viewerIndex < 0 || viewerIndex >= viewers.length) {
+        console.error("Invalid viewer index:", viewerIndex);
+        return;
+      }
+
+      // Prevent duplicate processing of the same URL for the same viewer
+      const lastUrl = lastProcessedUrls.get(viewerIndex);
+      if (lastUrl === newUrl) {
+        return;
+      }
+      lastProcessedUrls.set(viewerIndex, newUrl);
+
       const viewer = viewers[viewerIndex];
       if (
         !viewer ||
@@ -687,6 +706,39 @@ document.addEventListener("DOMContentLoaded", () => {
         !viewer.state.neuronData ||
         !viewer.state.baseUrl
       ) {
+        return;
+      }
+
+      // Log which viewer is being updated (for debugging)
+      if (DEBUG_DROPDOWN_SYNC) {
+        console.log(
+          `Updating dropdowns for ${viewer.config.prefix} with URL:`,
+          newUrl,
+        );
+      }
+
+      // Ensure we're only working with this specific viewer's DOM elements
+      const viewerPrefix = viewer.config.prefix;
+      const viewerDatasetSelect = document.getElementById(
+        `${viewerPrefix}-dataset-select`,
+      );
+      const viewerNeuronSelect = document.getElementById(
+        `${viewerPrefix}-neuron-select`,
+      );
+      const viewerHemisphereSelect = document.getElementById(
+        `${viewerPrefix}-hemisphere-select`,
+      );
+
+      // Verify these match the viewer's stored references
+      if (
+        viewer.datasetSelect !== viewerDatasetSelect ||
+        viewer.neuronSelect !== viewerNeuronSelect ||
+        viewer.hemisphereSelect !== viewerHemisphereSelect
+      ) {
+        console.error(
+          "Viewer element mismatch detected for viewer index",
+          viewerIndex,
+        );
         return;
       }
 
@@ -727,33 +779,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!matchedRecord) {
         // Clear cell type and hemisphere dropdowns when navigating to non-cell-type pages
-        const neuronSelect = viewer.neuronSelect;
-        const hemisphereSelect = viewer.hemisphereSelect;
-
-        if (neuronSelect && neuronSelect.value) {
+        // Use the verified viewer-specific elements
+        if (viewerNeuronSelect && viewerNeuronSelect.value) {
           // Temporarily disable change events
-          const originalNeuronOnChange = neuronSelect.onchange;
-          const originalHemisphereOnChange = hemisphereSelect
-            ? hemisphereSelect.onchange
+          const originalNeuronOnChange = viewerNeuronSelect.onchange;
+          const originalHemisphereOnChange = viewerHemisphereSelect
+            ? viewerHemisphereSelect.onchange
             : null;
 
-          neuronSelect.onchange = null;
-          if (hemisphereSelect) hemisphereSelect.onchange = null;
+          viewerNeuronSelect.onchange = null;
+          if (viewerHemisphereSelect) viewerHemisphereSelect.onchange = null;
 
           // Clear selections
-          neuronSelect.value = "";
-          if (hemisphereSelect) {
-            hemisphereSelect.value = "";
-            hemisphereSelect.disabled = true;
+          viewerNeuronSelect.value = "";
+          if (viewerHemisphereSelect) {
+            viewerHemisphereSelect.value = "";
+            viewerHemisphereSelect.disabled = true;
           }
 
           // Clear current record
           viewer.state.currentNeuronRecord = null;
 
           // Restore change handlers
-          neuronSelect.onchange = originalNeuronOnChange;
-          if (hemisphereSelect)
-            hemisphereSelect.onchange = originalHemisphereOnChange;
+          viewerNeuronSelect.onchange = originalNeuronOnChange;
+          if (viewerHemisphereSelect)
+            viewerHemisphereSelect.onchange = originalHemisphereOnChange;
 
           // Update URL to remove cell type and hemisphere parameters
           updateURL();
@@ -767,68 +817,72 @@ document.addEventListener("DOMContentLoaded", () => {
       const normalizedCellType = normalizeKey(record.name);
 
       // Update the neuron select dropdown if it's different
-      const neuronSelect = viewer.neuronSelect;
-      const hemisphereSelect = viewer.hemisphereSelect;
-
-      if (neuronSelect && neuronSelect.value !== normalizedCellType) {
+      // Use the verified viewer-specific elements
+      if (
+        viewerNeuronSelect &&
+        viewerNeuronSelect.value !== normalizedCellType
+      ) {
         // Temporarily disable change event to prevent loops
-        const originalNeuronOnChange = neuronSelect.onchange;
-        neuronSelect.onchange = null;
+        const originalNeuronOnChange = viewerNeuronSelect.onchange;
+        viewerNeuronSelect.onchange = null;
 
-        neuronSelect.value = normalizedCellType;
+        viewerNeuronSelect.value = normalizedCellType;
         viewer.state.currentNeuronRecord = record;
 
         // Restore the change handler
-        neuronSelect.onchange = originalNeuronOnChange;
+        viewerNeuronSelect.onchange = originalNeuronOnChange;
 
         // Update hemisphere options based on the new neuron
-        if (hemisphereSelect) {
+        if (viewerHemisphereSelect) {
           // Get available hemispheres for this cell type
           const availableHemispheres = getAvailableHemispheres(record);
 
           // Temporarily disable change event
-          const originalHemisphereOnChange = hemisphereSelect.onchange;
-          hemisphereSelect.onchange = null;
+          const originalHemisphereOnChange = viewerHemisphereSelect.onchange;
+          viewerHemisphereSelect.onchange = null;
 
           // Clear and repopulate hemisphere select
-          hemisphereSelect.innerHTML = "";
+          viewerHemisphereSelect.innerHTML = "";
           const defaultOption = document.createElement("option");
           defaultOption.value = "";
           defaultOption.textContent = "Choose hemisphere";
-          hemisphereSelect.appendChild(defaultOption);
+          viewerHemisphereSelect.appendChild(defaultOption);
 
           availableHemispheres.forEach((hem) => {
             const option = document.createElement("option");
             option.value = hem;
             option.textContent = hem.charAt(0).toUpperCase() + hem.slice(1);
-            hemisphereSelect.appendChild(option);
+            viewerHemisphereSelect.appendChild(option);
           });
 
-          hemisphereSelect.disabled = availableHemispheres.length === 0;
+          viewerHemisphereSelect.disabled = availableHemispheres.length === 0;
 
           // Set the hemisphere value after options are populated
           if (availableHemispheres.includes(hemisphere)) {
-            hemisphereSelect.value = hemisphere;
+            viewerHemisphereSelect.value = hemisphere;
           } else if (availableHemispheres.includes("combined")) {
-            hemisphereSelect.value = "combined";
+            viewerHemisphereSelect.value = "combined";
           }
 
           // Restore the change handler
-          hemisphereSelect.onchange = originalHemisphereOnChange;
+          viewerHemisphereSelect.onchange = originalHemisphereOnChange;
         }
-      } else if (hemisphereSelect && hemisphereSelect.value !== hemisphere) {
+      } else if (
+        viewerHemisphereSelect &&
+        viewerHemisphereSelect.value !== hemisphere
+      ) {
         // Only update hemisphere if neuron didn't change
         const availableHemispheres = getAvailableHemispheres(record);
 
         if (availableHemispheres.includes(hemisphere)) {
           // Temporarily disable change event to prevent loops
-          const originalOnChange = hemisphereSelect.onchange;
-          hemisphereSelect.onchange = null;
+          const originalOnChange = viewerHemisphereSelect.onchange;
+          viewerHemisphereSelect.onchange = null;
 
-          hemisphereSelect.value = hemisphere;
+          viewerHemisphereSelect.value = hemisphere;
 
           // Restore the change handler
-          hemisphereSelect.onchange = originalOnChange;
+          viewerHemisphereSelect.onchange = originalOnChange;
         }
       }
 
@@ -841,6 +895,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const frame = document.getElementById(`${config.prefix}-frame`);
       if (!frame) return null;
 
+      // Capture index in closure to ensure correct viewer is updated
+      const viewerIndex = index;
+      const viewerPrefix = config.prefix;
+
       return new NeuviewIframeController(frame, {
         onUrlChanged: function (data) {
           // Update dropdowns when iframe URL changes
@@ -849,7 +907,13 @@ document.addEventListener("DOMContentLoaded", () => {
             data.currentUrl !== "about:blank" &&
             !data.currentUrl.startsWith("about:")
           ) {
-            updateDropdownsFromIframeUrl(index, data.currentUrl);
+            if (DEBUG_DROPDOWN_SYNC) {
+              console.log(
+                `${viewerPrefix} iframe URL changed to:`,
+                data.currentUrl,
+              );
+            }
+            updateDropdownsFromIframeUrl(viewerIndex, data.currentUrl);
           }
         },
         onNavigationRequest: function (data) {
@@ -859,7 +923,10 @@ document.addEventListener("DOMContentLoaded", () => {
             data.url !== "about:blank" &&
             !data.url.startsWith("about:")
           ) {
-            updateDropdownsFromIframeUrl(index, data.url);
+            if (DEBUG_DROPDOWN_SYNC) {
+              console.log(`${viewerPrefix} navigation request to:`, data.url);
+            }
+            updateDropdownsFromIframeUrl(viewerIndex, data.url);
           }
         },
         debug: false,
@@ -872,7 +939,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const frame = document.getElementById(`${config.prefix}-frame`);
       if (!frame) return;
 
+      // Capture index and prefix in closure to ensure correct viewer is updated
+      const viewerIndex = index;
+      const viewerPrefix = config.prefix;
       let lastSrc = frame.src;
+      let debounceTimer = null;
 
       // Monitor src attribute changes with MutationObserver for instant updates
       const observer = new MutationObserver((mutations) => {
@@ -888,7 +959,20 @@ document.addEventListener("DOMContentLoaded", () => {
               !newSrc.startsWith("about:")
             ) {
               lastSrc = newSrc;
-              updateDropdownsFromIframeUrl(index, newSrc);
+              if (DEBUG_DROPDOWN_SYNC) {
+                console.log(
+                  `${viewerPrefix} src attribute changed to:`,
+                  newSrc,
+                );
+              }
+
+              // Debounce to prevent multiple rapid calls
+              if (debounceTimer) {
+                clearTimeout(debounceTimer);
+              }
+              debounceTimer = setTimeout(() => {
+                updateDropdownsFromIframeUrl(viewerIndex, newSrc);
+              }, 50);
             }
           }
         });
