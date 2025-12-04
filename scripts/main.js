@@ -962,5 +962,61 @@ document.addEventListener("DOMContentLoaded", () => {
         window.history.replaceState({}, "", "index.html");
       });
     }
+
+    // Navigation line functionality
+    const navLine = document.getElementById("nav-line");
+    const navCircles = document.querySelectorAll(".nav-circle");
+
+    // Function to check if both viewers are visible
+    function updateNavLineVisibility() {
+      const viewerAVisible = !document
+        .getElementById("viewerA-preview")
+        .classList.contains("is-hidden");
+      const viewerBVisible = !document
+        .getElementById("viewerB-preview")
+        .classList.contains("is-hidden");
+
+      if (viewerAVisible && viewerBVisible) {
+        navLine.classList.remove("is-hidden");
+      } else {
+        navLine.classList.add("is-hidden");
+      }
+    }
+
+    // Add click handlers to navigation circles
+    navCircles.forEach((circle) => {
+      circle.addEventListener("click", () => {
+        const anchor = circle.getAttribute("data-anchor");
+
+        // Navigate both iframes to the anchor
+        iframeControllers.forEach((controller) => {
+          if (controller && controller.isPageReady()) {
+            controller.jumpToAnchor(anchor);
+          }
+        });
+      });
+    });
+
+    // Monitor visibility changes to show/hide nav line
+    const paneObserver = new MutationObserver(() => {
+      updateNavLineVisibility();
+    });
+
+    const viewerAPane = document.getElementById("viewerA-preview");
+    const viewerBPane = document.getElementById("viewerB-preview");
+
+    if (viewerAPane && viewerBPane) {
+      paneObserver.observe(viewerAPane, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+      paneObserver.observe(viewerBPane, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    }
+
+    // Initial visibility check
+    updateNavLineVisibility();
   });
 })();

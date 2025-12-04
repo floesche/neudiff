@@ -351,6 +351,7 @@ main.viewer-split {
     padding: clamp(0.75rem, 2vw, 1.5rem);
     min-height: 0;
     overflow: hidden;
+    position: relative;
 }
 
 .pane {
@@ -513,5 +514,47 @@ main.viewer-split {
 @media (max-width: 720px) {
     .viewer-controls {
         grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    }
+}
+
+/* Navigation Line Styles */
+.nav-line {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    height: 800px;
+    width: 15px;
+    transform: translate(-50%, -50%);
+    z-index: 15;
+    pointer-events: auto;
+}
+
+.nav-line.is-hidden {
+    display: none;
+}
+
+.nav-line-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.nav-circle {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.nav-circle:hover {
+    fill: rgba(120, 180, 255, 1);
+    r: 3;
+    filter: drop-shadow(0 0 4px rgba(120, 180, 255, 0.8));
+}
+
+.nav-circle:active {
+    r: 2.5;
+}
+
+@media (max-width: 960px) {
+    .nav-line {
+        display: none !important;
     }
 }

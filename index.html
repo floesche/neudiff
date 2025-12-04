@@ -52,6 +52,29 @@
   </header>
 
   <main class="viewer-split" aria-label="Cell Type previews">
+    <nav id="nav-line" class="nav-line is-hidden" aria-label="Section Navigation">
+      <svg class="nav-line-svg" viewBox="0 0 15 500" preserveAspectRatio="xMidYMid meet">
+        <line x1="7.5" y1="0" x2="7.5" y2="500" stroke="rgba(80, 80, 80, 0.8)" stroke-width="0.5" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/>
+        <circle class="nav-circle" data-anchor="top" cx="7.5" cy="5" r="7.5" fill="rgba(80, 80, 80, 0.9)" vector-effect="non-scaling-stroke">
+          <title>Top</title>
+        </circle>
+        <circle class="nav-circle" data-anchor="eyemaps" cx="7.5" cy="100" r="7.5" fill="rgba(80, 80, 80, 0.9)" vector-effect="non-scaling-stroke">
+          <title>Eye Maps (if available)</title>
+        </circle>
+        <circle class="nav-circle" data-anchor="neuron-visualization" cx="7.5" cy="200" r="7.5" fill="rgba(80, 80, 80, 0.9)" vector-effect="non-scaling-stroke">
+          <title>Neuron Visualization</title>
+        </circle>
+        <circle class="nav-circle" data-anchor="roi-innervation" cx="7.5" cy="300" r="7.5" fill="rgba(80, 80, 80, 0.9)" vector-effect="non-scaling-stroke">
+          <title>ROI Innervation</title>
+        </circle>
+        <circle class="nav-circle" data-anchor="s-c-i" cx="7.5" cy="400" r="7.5" fill="rgba(80, 80, 80, 0.9)" vector-effect="non-scaling-stroke">
+          <title>Synaptic Connectivity Inputs</title>
+        </circle>
+        <circle class="nav-circle" data-anchor="s-c-o" cx="7.5" cy="495" r="7.5" fill="rgba(80, 80, 80, 0.9)" vector-effect="non-scaling-stroke">
+          <title>Synaptic Connectivity Outputs</title>
+        </circle>
+      </svg>
+    </nav>
     <section id="welcome-screen" class="welcome-screen" aria-label="Welcome and Instructions">
       <div class="welcome-content">
         <h1>Welcome to neuDiff</h1>
@@ -93,9 +116,9 @@
 
         <div class="note">
           <p>
-            <strong>Keyboard Navigation:</strong> When a cell type dropdown is open, you can quickly navigate to 
-            specific entries by typing on your keyboard. For example, instead of scrolling through thousands of 
-            cell types, simply type <kbd>V</kbd><kbd>S</kbd> to jump directly to cell types starting with "VS". 
+            <strong>Keyboard Navigation:</strong> When a cell type dropdown is open, you can quickly navigate to
+            specific entries by typing on your keyboard. For example, instead of scrolling through thousands of
+            cell types, simply type <kbd>V</kbd><kbd>S</kbd> to jump directly to cell types starting with "VS".
             This works with any letter combination to help you find what you're looking for faster.
           </p>
         </div>
