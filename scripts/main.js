@@ -378,7 +378,12 @@ document.addEventListener("DOMContentLoaded", () => {
       defaultOption.selected = true;
       neuronSelect.appendChild(defaultOption);
 
-      state.neuronEntries.forEach((entry) => {
+      // Sort entries alphabetically by lowercase
+      const sortedEntries = [...state.neuronEntries].sort((a, b) => {
+        return a.toLowerCase().localeCompare(b.toLowerCase());
+      });
+
+      sortedEntries.forEach((entry) => {
         const option = document.createElement("option");
         // Entries are strings (names from the names array)
         option.textContent = entry;
